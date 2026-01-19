@@ -483,18 +483,9 @@ export default function TrackingPage() {
       />
 
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Time Tracking</h1>
-            <p className="mt-1 text-slate-500 font-medium">Track your work hours and breaks in real-time.</p>
-          </div>
-          <div className="w-full md:w-72 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
-            <TeamSelector
-              teams={teams}
-              selectedTeam={selectedTeam}
-              onTeamChange={setSelectedTeam}
-            />
-          </div>
+        <div className="mb-10">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Time Tracking</h1>
+          <p className="mt-1 text-slate-500 font-medium">Track your work hours and breaks in real-time.</p>
         </div>
 
         {error && (
@@ -574,7 +565,9 @@ export default function TrackingPage() {
             <p className="text-4xl font-black text-slate-900 tabular-nums">
               {todayStats.sessionCount}
             </p>
-            <p className="mt-4 text-xs font-bold text-slate-400">Current team: <span className="text-indigo-600 font-black">{teams.find(t => t.id === selectedTeam)?.name || '...'}</span></p>
+            <p className="mt-4 text-xs font-bold text-slate-400 truncate">
+              Focusing on: <span className="text-indigo-600 font-black">{teams.find(t => t.id === (activeSession?.team_id || selectedTeam))?.name || '...'}</span>
+            </p>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
@@ -722,8 +715,18 @@ export default function TrackingPage() {
                 </div>
                 <div className="mb-12">
                   <p className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] mb-6 leading-relaxed">Ready to Start</p>
+                  
+                  {/* Integrated Team Selector */}
+                  <div className="max-w-xs mx-auto mb-8 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+                    <TeamSelector
+                      teams={teams}
+                      selectedTeam={selectedTeam}
+                      onTeamChange={setSelectedTeam}
+                    />
+                  </div>
+
                   <p className="text-8xl font-black text-slate-100 font-mono tracking-tighter tabular-nums mb-6">00:00:00</p>
-                  <p className="text-slate-400 max-w-sm mx-auto font-bold text-lg leading-relaxed px-4">Ready to tackle the day? Select your team and hit the start button below.</p>
+                  <p className="text-slate-400 max-w-sm mx-auto font-bold text-lg leading-relaxed px-4">Select your team above and hit the start button below to begin tracking.</p>
                 </div>
                 <button
                   onClick={handleClockIn}

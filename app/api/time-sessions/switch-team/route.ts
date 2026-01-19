@@ -61,27 +61,53 @@ export async function POST(request: NextRequest) {
 
     if (!teamMember) {
       return NextResponse.json(
-        { error: 'You are not a member of this team' },
+        { error: 'You are not a member of the selected team' },
         { status: 403 }
       )
     }
 
-    // Update team_id
-    const { data: updatedSession, error } = await supabase
-      .from('time_sessions')
-      .update({ team_id })
-      .eq('id', time_session_id)
-      .select()
-      .single()
+    // Step 1: Clock out the current session
+    const now = new Date().toISOString()
+    
+    // Check for active breaks and end them first
+    await supabase
+      .from('break_segments')
+      .update({ break_end_at: now } as any)
+      .eq('time_session_id', time_session_id)
+      .is('break_end_at', null)
 
-    if (error) {
+    const { error: clockOutError } = await supabase
+      .from('time_sessions')
+      .update({ clock_out_at: now } as any)
+      .eq('id', time_session_id)
+
+    if (clockOutError) {
       return NextResponse.json(
-        { error: error.message },
+        { error: `Failed to clock out from current team: ${clockOutError.message}` },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ session: updatedSession })
+    // Step 2: Immediately clock in to the new team
+    const { data: newSession, error: clockInError } = await supabase
+      .from('time_sessions')
+      .insert({
+        user_id: user.id,
+        team_id: team_id,
+        clock_in_at: now,
+        created_by: user.id,
+      } as any)
+      .select()
+      .single()
+
+    if (clockInError) {
+      return NextResponse.json(
+        { error: `Successfully stopped previous session, but failed to start new one: ${clockInError.message}` },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json({ session: newSession })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

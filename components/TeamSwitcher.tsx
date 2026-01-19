@@ -88,8 +88,8 @@ export default function TeamSwitcher({ activeSessionId, currentTeamId, teams, on
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Switch To</p>
-            <p className="text-xs text-slate-500 font-bold">Another Client</p>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Stop & Switch</p>
+            <p className="text-[10px] text-slate-400 font-bold max-w-[120px]">Previous count will stop and new one will start</p>
           </div>
         </div>
         
