@@ -41,8 +41,9 @@ export default function AdminPage() {
           role: tm.role,
         }))
         setTeams(teamList)
+        // Default to "All Teams" (empty string) to show all requests
         if (teamList.length > 0 && !selectedTeam) {
-          setSelectedTeam(teamList[0].id)
+          setSelectedTeam('')
         }
       }
 
@@ -131,6 +132,7 @@ export default function AdminPage() {
               onChange={(e) => setSelectedTeam(e.target.value)}
               className="w-full px-4 py-2.5 bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer"
             >
+              <option value="">All Teams</option>
               {teams.map((team) => (
                 <option key={team.id} value={team.id}>
                   {team.name} ({team.role})
@@ -151,7 +153,10 @@ export default function AdminPage() {
                 </div>
                 <h2 className="text-2xl font-black text-slate-900">Pending Requests</h2>
               </div>
-              <AdminRequestsView teamId={selectedTeam} />
+              <AdminRequestsView 
+                teamIds={teams.map(t => t.id)} 
+                selectedTeamId={selectedTeam}
+              />
             </div>
 
             <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] p-10 border border-slate-100">
