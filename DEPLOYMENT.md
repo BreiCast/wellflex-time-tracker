@@ -12,7 +12,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_production_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
 
 # Application URL (for email redirects)
-NEXT_PUBLIC_APP_URL=https://your-production-domain.com
+# Use your subdomain: tracker.wellflex.co
+NEXT_PUBLIC_APP_URL=https://tracker.wellflex.co
 ```
 
 **Important:** 
@@ -87,15 +88,66 @@ Consider adding:
 
 ### Vercel (Recommended for Next.js)
 
-1. Connect your GitHub repository
-2. Set environment variables in Vercel Dashboard
-3. Deploy automatically on push to `main`
+#### Initial Setup
+
+1. **Connect your GitHub repository:**
+   - Go to [Vercel Dashboard](https://vercel.com/dashboard)
+   - Click "Add New Project"
+   - Import your GitHub repository: `BreiCast/wellflex-time-tracker`
+   - Framework Preset: Next.js (auto-detected)
+   - Root Directory: `./` (default)
+
+2. **Set environment variables in Vercel Dashboard:**
+   - Go to Project Settings → Environment Variables
+   - Add all required variables:
+     ```
+     NEXT_PUBLIC_SUPABASE_URL=your_production_supabase_url
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=your_production_anon_key
+     SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
+     NEXT_PUBLIC_APP_URL=https://tracker.wellflex.co
+     ```
+
+3. **Deploy:**
+   - Click "Deploy"
+   - Vercel will automatically build and deploy
+
+#### Setting Up Subdomain (tracker.wellflex.co)
+
+1. **Add Domain in Vercel:**
+   - Go to your project → Settings → Domains
+   - Click "Add Domain"
+   - Enter: `tracker.wellflex.co`
+   - Click "Add"
+
+2. **Configure DNS (if not already done):**
+   - Go to your DNS provider (where wellflex.co is managed)
+   - Add a CNAME record:
+     - **Name/Host:** `tracker`
+     - **Value/Target:** `cname.vercel-dns.com`
+     - **TTL:** 3600 (or default)
+
+3. **Verify Domain:**
+   - Vercel will automatically verify the domain
+   - This may take a few minutes to propagate
+
+4. **Update Supabase Redirect URLs:**
+   - Go to Supabase Dashboard → Authentication → URL Configuration
+   - Add to "Redirect URLs": `https://tracker.wellflex.co/auth/confirm`
+   - Add to "Site URL": `https://tracker.wellflex.co`
+
+#### Using Vercel CLI (Optional)
 
 ```bash
-# Install Vercel CLI (optional)
+# Install Vercel CLI
 npm i -g vercel
 
-# Deploy
+# Login to Vercel
+vercel login
+
+# Link to your project (from project directory)
+vercel link
+
+# Deploy to production
 vercel --prod
 ```
 
