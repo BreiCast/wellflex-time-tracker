@@ -284,34 +284,64 @@ export default function TeamsPage() {
         onLogout={handleLogout}
       />
 
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Teams Management</h1>
-          <div className="flex gap-2">
+      <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+        <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Teams Management</h1>
+            <p className="mt-1 text-slate-500 font-medium">Create and manage teams, members, and schedules.</p>
+          </div>
+          <div className="flex gap-3">
             <button
               onClick={loadTeams}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              className="group p-3 bg-white text-slate-600 border border-slate-200 rounded-2xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
+              title="Refresh Teams"
             >
-              🔄 Refresh
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 group-hover:rotate-180 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </button>
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className={`flex items-center px-6 py-3 rounded-2xl font-black transition-all shadow-lg transform active:scale-95 ${
+                showCreateForm 
+                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' 
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
+              }`}
             >
-              {showCreateForm ? 'Cancel' : '+ Create Team'}
-          </button>
+              {showCreateForm ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create Team
+                </>
+              )}
+            </button>
           </div>
         </div>
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
+          <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-xl flex items-center shadow-sm animate-in slide-in-from-top duration-300">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span className="font-bold">{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-            {success}
+          <div className="mb-8 p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-700 rounded-xl flex items-center shadow-sm animate-in slide-in-from-top duration-300">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="font-bold">{success}</span>
           </div>
         )}
 
@@ -377,185 +407,228 @@ export default function TeamsPage() {
 
         {/* Teams List */}
         {teams.length === 0 ? (
-          <div className="bg-white shadow rounded-lg p-8 text-center">
-            <p className="text-gray-500 text-lg mb-4">You are not a member of any teams yet.</p>
+          <div className="bg-white shadow-sm rounded-[3rem] p-16 text-center border border-slate-100">
+            <div className="w-24 h-24 bg-slate-50 text-slate-200 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            <p className="text-slate-400 font-bold text-xl mb-8 leading-relaxed">You are not a member of any teams yet.</p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-10 py-5 bg-indigo-600 text-white font-black rounded-3xl hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all transform hover:-translate-y-1"
             >
               Create Your First Team
             </button>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Team Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Your Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {teams.map((team) => (
-                  <React.Fragment key={team.id}>
-                    <tr className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {editingTeam === team.id ? (
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              value={editTeamName}
-                              onChange={(e) => setEditTeamName(e.target.value)}
-                              className="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                              autoFocus
-                            />
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="color"
-                                value={editTeamColor}
-                                onChange={(e) => setEditTeamColor(e.target.value)}
-                                className="w-12 h-8 rounded-lg border border-slate-300 cursor-pointer"
-                              />
+          <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] overflow-hidden border border-slate-100">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-50">
+                <thead className="bg-slate-50/50">
+                  <tr>
+                    <th className="px-10 py-6 text-left text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Team Name</th>
+                    <th className="px-10 py-6 text-left text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Your Role</th>
+                    <th className="px-10 py-6 text-left text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Created</th>
+                    <th className="px-10 py-6 text-right text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {teams.map((team) => (
+                    <React.Fragment key={team.id}>
+                      <tr className="group hover:bg-slate-50/80 transition-all duration-200">
+                        <td className="px-10 py-8 whitespace-nowrap">
+                          {editingTeam === team.id ? (
+                            <div className="space-y-4 max-w-xs animate-in fade-in zoom-in-95 duration-300">
                               <input
                                 type="text"
-                                value={editTeamColor}
-                                onChange={(e) => setEditTeamColor(e.target.value)}
-                                pattern="^#[0-9A-F]{6}$"
-                                className="flex-1 px-2 py-1 border border-slate-300 rounded-lg font-mono text-xs"
+                                value={editTeamName}
+                                onChange={(e) => setEditTeamName(e.target.value)}
+                                className="w-full px-4 py-2 border-2 border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700"
+                                autoFocus
                               />
+                              <div className="flex items-center space-x-3">
+                                <input
+                                  type="color"
+                                  value={editTeamColor}
+                                  onChange={(e) => setEditTeamColor(e.target.value)}
+                                  className="w-12 h-10 rounded-lg border-2 border-slate-200 cursor-pointer"
+                                />
+                                <input
+                                  type="text"
+                                  value={editTeamColor}
+                                  onChange={(e) => setEditTeamColor(e.target.value)}
+                                  pattern="^#[0-9A-F]{6}$"
+                                  className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-lg font-mono text-xs font-black text-slate-500"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center space-x-3">
-                            <div 
-                              className="w-4 h-4 rounded-full shadow-sm border border-white/50"
-                              style={{ backgroundColor: team.color || '#6366f1' }}
-                            ></div>
-                            <div className="text-sm font-bold text-gray-900">{team.name}</div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          team.role === 'ADMIN' 
-                            ? 'bg-purple-100 text-purple-800'
-                            : team.role === 'MANAGER'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {team.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(team.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        {editingTeam === team.id ? (
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleUpdateTeam(team.id)}
-                              disabled={updating}
-                              className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                            >
-                              {updating ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                              onClick={handleCancelEdit}
-                              disabled={updating}
-                              className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : deletingTeam === team.id ? (
-                          <div className="flex justify-end gap-2">
-                            <span className="text-sm text-red-600 mr-2">Delete this team?</span>
-                            <button
-                              onClick={() => handleDeleteTeam(team.id)}
-                              disabled={deleting}
-                              className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                            >
-                              {deleting ? 'Deleting...' : 'Confirm'}
-                            </button>
-                            <button
-                              onClick={handleCancelDelete}
-                              disabled={deleting}
-                              className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end gap-2">
-                            {team.role === 'ADMIN' && (
-                              <>
-                                <button
-                                  onClick={() => handleStartEdit(team)}
-                                  className="px-3 py-1.5 text-xs font-black text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleStartDelete(team.id)}
-                                  className="px-3 py-1.5 text-xs font-black text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                            <button
-                              onClick={() => setSelectedTeamForSchedule(selectedTeamForSchedule === team.id ? null : team.id)}
-                              className="px-3 py-1.5 text-xs font-black text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                            >
-                              {selectedTeamForSchedule === team.id ? 'Hide' : 'Schedule'}
-                            </button>
-                            <button
-                              onClick={() => router.push(`/dashboard?tab=teams&team=${team.id}`)}
-                              className="px-3 py-1.5 text-xs font-black text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                            >
-                              Members
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                    {selectedTeamForSchedule === team.id && (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-6 bg-slate-50">
-                          <div className="bg-white rounded-2xl p-6 border border-slate-200">
-                            <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              Work Schedule for {team.name}
-                            </h3>
-                            <p className="text-sm text-slate-500 mb-6 font-medium">Set your weekly schedule for this team. For example: Monday 8:00 AM - 2:00 PM for Wellflex, then 2:00 PM - 5:00 PM for Aclarian.</p>
-                            <ScheduleManager 
-                              teamId={team.id} 
-                              onScheduleUpdated={async () => {
-                                await loadSchedules()
-                              }}
-                            />
+                          ) : (
+                            <div className="flex items-center space-x-4">
+                              <div 
+                                className="w-5 h-5 rounded-lg shadow-sm border-2 border-white ring-1 ring-slate-100"
+                                style={{ backgroundColor: team.color || '#6366f1' }}
+                              ></div>
+                              <div className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{team.name}</div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-10 py-8 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                            team.role === 'ADMIN' 
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : team.role === 'MANAGER'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                               team.role === 'ADMIN' ? 'bg-indigo-500' : team.role === 'MANAGER' ? 'bg-emerald-500' : 'bg-slate-400'
+                            }`}></span>
+                            {team.role}
+                          </span>
+                        </td>
+                        <td className="px-10 py-8 whitespace-nowrap">
+                          <div className="text-sm font-bold text-slate-400">
+                            {new Date(team.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </div>
                         </td>
+                        <td className="px-10 py-8 whitespace-nowrap text-right">
+                          {editingTeam === team.id ? (
+                            <div className="flex justify-end gap-3 animate-in fade-in slide-in-from-right-2 duration-300">
+                              <button
+                                onClick={() => handleUpdateTeam(team.id)}
+                                disabled={updating}
+                                className="px-5 py-2.5 bg-emerald-600 text-white text-xs font-black rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50"
+                              >
+                                {updating ? 'SAVING...' : 'SAVE CHANGES'}
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                disabled={updating}
+                                className="px-5 py-2.5 bg-slate-100 text-slate-600 text-xs font-black rounded-xl hover:bg-slate-200 transition-all disabled:opacity-50"
+                              >
+                                CANCEL
+                              </button>
+                            </div>
+                          ) : deletingTeam === team.id ? (
+                            <div className="flex justify-end items-center gap-4 animate-in fade-in slide-in-from-right-2 duration-300">
+                              <span className="text-xs font-black text-rose-600 uppercase tracking-wider">Are you sure?</span>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleDeleteTeam(team.id)}
+                                  disabled={deleting}
+                                  className="px-5 py-2.5 bg-rose-600 text-white text-xs font-black rounded-xl hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all disabled:opacity-50"
+                                >
+                                  {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+                                </button>
+                                <button
+                                  onClick={handleCancelDelete}
+                                  disabled={deleting}
+                                  className="px-5 py-2.5 bg-slate-100 text-slate-600 text-xs font-black rounded-xl hover:bg-slate-200 transition-all disabled:opacity-50"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-end items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                              {team.role === 'ADMIN' && (
+                                <>
+                                  <button
+                                    onClick={() => handleStartEdit(team)}
+                                    className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                    title="Edit Team"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleStartDelete(team.id)}
+                                    className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                                    title="Delete Team"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                onClick={() => setSelectedTeamForSchedule(selectedTeamForSchedule === team.id ? null : team.id)}
+                                className={`p-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2 px-4 ${
+                                  selectedTeamForSchedule === team.id 
+                                  ? 'bg-amber-600 text-white' 
+                                  : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'
+                                }`}
+                                title="Work Schedule"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-xs font-black uppercase tracking-widest">{selectedTeamForSchedule === team.id ? 'Close' : 'Schedule'}</span>
+                              </button>
+                              <button
+                                onClick={() => router.push(`/dashboard?tab=teams&team=${team.id}`)}
+                                className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center gap-2 px-4"
+                                title="Team Members"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                                <span className="text-xs font-black uppercase tracking-widest">Members</span>
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+                      {selectedTeamForSchedule === team.id && (
+                        <tr className="bg-slate-50/50">
+                          <td colSpan={4} className="px-10 py-10 animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-indigo-900/5 border border-slate-100 relative overflow-hidden">
+                              <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-indigo-50/50 rounded-full blur-3xl"></div>
+                              <div className="relative z-10">
+                                <div className="flex items-center justify-between mb-8">
+                                  <div>
+                                    <h3 className="text-2xl font-black text-slate-900 flex items-center">
+                                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl mr-3 shadow-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                      </div>
+                                      Work Schedule for {team.name}
+                                    </h3>
+                                    <p className="text-slate-500 mt-2 font-bold max-w-2xl">Configure your weekly work availability for this client. This helps track your progress against scheduled hours.</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => setSelectedTeamForSchedule(null)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100">
+                                  <ScheduleManager 
+                                    teamId={team.id} 
+                                    onScheduleUpdated={async () => {
+                                      await loadSchedules()
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
+        )}}
       </main>
     </div>
   )
