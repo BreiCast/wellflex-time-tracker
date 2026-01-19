@@ -17,6 +17,9 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
   const [inviteRole, setInviteRole] = useState<'MEMBER' | 'MANAGER' | 'ADMIN'>('MEMBER')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [error, setError] = useState('')
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editNameValue, setEditNameValue] = useState('')
+  const [updatingName, setUpdatingName] = useState(false)
 
   const loadMembers = useCallback(async () => {
     if (!teamId) return
@@ -161,6 +164,61 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
     }
   }
 
+  const handleStartEditName = (userId: string, currentName: string) => {
+    setEditingName(userId)
+    setEditNameValue(currentName || '')
+    setError('')
+  }
+
+  const handleCancelEditName = () => {
+    setEditingName(null)
+    setEditNameValue('')
+  }
+
+  const handleUpdateName = async (userId: string) => {
+    if (!editNameValue.trim()) {
+      setError('Name cannot be empty')
+      return
+    }
+
+    setUpdatingName(true)
+    setError('')
+
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('Not authenticated')
+      }
+
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          full_name: editNameValue.trim(),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        setEditingName(null)
+        setEditNameValue('')
+        loadMembers()
+      } else {
+        setError(result.error || 'Failed to update name')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update name')
+    } finally {
+      setUpdatingName(false)
+    }
+  }
+
   if (loading) {
     return <div className="text-gray-600">Loading team members...</div>
   }
@@ -205,6 +263,15 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
         )}
       </div>
 
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-xl flex items-center animate-in fade-in slide-in-from-top-2 duration-300">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <span className="text-sm font-bold">{error}</span>
+        </div>
+      )}
+
       {showInviteForm && canManage && (
         <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500">
           <h4 className="text-lg font-black text-slate-900 mb-6">Send New Invitation</h4>
@@ -244,14 +311,6 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
               {inviteLoading ? 'SENDING...' : 'SEND INVITE'}
             </button>
           </form>
-          {error && (
-            <div className="mt-4 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-xl flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm font-bold">{error}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -277,8 +336,54 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
                   <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-all duration-500 font-black text-xl">
                     {user?.full_name ? user.full_name.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase()}
                   </div>
-                  <h4 className="font-black text-slate-900 text-lg leading-tight mb-1">{user?.full_name || 'No Name'}</h4>
-                  <p className="text-xs font-bold text-slate-400 mb-4">{user?.email}</p>
+                  
+                  {editingName === member.user_id ? (
+                    <div className="w-full mb-4 space-y-2">
+                      <input
+                        type="text"
+                        value={editNameValue}
+                        onChange={(e) => setEditNameValue(e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 text-sm"
+                        placeholder="Enter name"
+                        autoFocus
+                        disabled={updatingName}
+                      />
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => handleUpdateName(member.user_id)}
+                          disabled={updatingName || !editNameValue.trim()}
+                          className="px-4 py-1.5 bg-emerald-600 text-white text-xs font-black rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                        >
+                          {updatingName ? 'SAVING...' : 'SAVE'}
+                        </button>
+                        <button
+                          onClick={handleCancelEditName}
+                          disabled={updatingName}
+                          className="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-black rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-all"
+                        >
+                          CANCEL
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-black text-slate-900 text-lg leading-tight">{user?.full_name || 'No Name'}</h4>
+                        {canManage && userRole === 'ADMIN' && member.user_id !== currentUserId && (
+                          <button
+                            onClick={() => handleStartEditName(member.user_id, user?.full_name || '')}
+                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Edit Name"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs font-bold text-slate-400 mb-4">{user?.email}</p>
+                    </>
+                  )}
                   
                   {canManage && userRole === 'ADMIN' && member.user_id !== currentUserId ? (
                     <select
