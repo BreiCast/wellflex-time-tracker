@@ -102,8 +102,15 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   }, [selectedUserId, teamId, dateRange])
 
   useEffect(() => {
-    if (selectedUserId && teamId) {
-      loadTimesheet()
+    if (selectedUserId) {
+      // Only require teamId if it's not empty (not "All Teams")
+      if (teamId && teamId !== '') {
+        loadTimesheet()
+      } else if (teamId === '') {
+        // When "All Teams" is selected, show empty state or aggregate
+        setTimesheet([])
+        setLoading(false)
+      }
     }
   }, [selectedUserId, teamId, dateRange, loadTimesheet])
 
@@ -126,43 +133,49 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   return (
     <div className="space-y-6">
       {/* Header / Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </h2>
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button
-              onClick={prevMonth}
-              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={goToToday}
-              className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-indigo-600"
-            >
-              Today
-            </button>
-            <button
-              onClick={nextMonth}
-              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+      <div className="flex flex-col gap-4">
+        {/* First Row: Month Navigation */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </h2>
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-sm">
+              <button
+                onClick={prevMonth}
+                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
+                aria-label="Previous month"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={goToToday}
+                className="px-4 py-1.5 text-xs font-black uppercase tracking-wider text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+              >
+                Today
+              </button>
+              <button
+                onClick={nextMonth}
+                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
+                aria-label="Next month"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Second Row: User Selector and View Toggle */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
           {(userRole === 'MANAGER' || userRole === 'ADMIN') && members.length > 0 && (
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+              className="bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-black text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm hover:border-slate-300 transition-colors"
             >
               {members.map(member => (
                 <option key={member.id} value={member.id}>
@@ -172,19 +185,23 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
             </select>
           )}
 
-          <div className="flex bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-sm border border-slate-200">
             <button
               onClick={() => setViewMode('calendar')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'calendar' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+              className={`px-5 py-2.5 rounded-lg text-sm font-black transition-all ${
+                viewMode === 'calendar' 
+                  ? 'bg-white shadow-md text-indigo-600 border-2 border-indigo-500' 
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
               }`}
             >
               Calendar
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'table' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+              className={`px-5 py-2.5 rounded-lg text-sm font-black transition-all ${
+                viewMode === 'table' 
+                  ? 'bg-white shadow-md text-indigo-600 border-2 border-indigo-500' 
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
               }`}
             >
               Table
@@ -216,7 +233,19 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
       </div>
 
       {/* Main View */}
-      {loading ? (
+      {!teamId || teamId === '' ? (
+        <div className="h-96 flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl border-2 border-dashed border-slate-300 shadow-sm">
+          <div className="w-20 h-20 bg-slate-200 rounded-2xl flex items-center justify-center mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-slate-600 font-black text-lg mb-2">Select a Team</p>
+          <p className="text-slate-400 text-sm font-bold max-w-sm text-center">
+            Please select a specific team from the dropdown above to view timesheet data.
+          </p>
+        </div>
+      ) : loading ? (
         <div className="h-96 flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-100 shadow-sm">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
           <p className="text-slate-500 font-bold">Loading records...</p>

@@ -126,19 +126,24 @@ export default function AdminPage() {
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Admin Control Panel</h1>
             <p className="mt-1 text-slate-500 font-medium">Manage team requests, timesheets, and configurations.</p>
           </div>
-          <div className="w-full md:w-72 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
-            <select
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
-              className="w-full px-4 py-2.5 bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer"
-            >
-              <option value="">All Teams</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name} ({team.role})
-                </option>
-              ))}
-            </select>
+          <div className="w-full md:w-80 bg-white p-1.5 rounded-2xl shadow-sm border-2 border-slate-200 hover:border-indigo-300 transition-colors">
+            <div className="flex items-center gap-2 px-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+                className="flex-1 px-3 py-2.5 bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer"
+              >
+                <option value="">All Teams</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name} ({team.role})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -160,13 +165,30 @@ export default function AdminPage() {
             </div>
 
             <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] p-10 border border-slate-100">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-[1.25rem] shadow-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-[1.25rem] shadow-sm border border-indigo-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900">Team Timesheets</h2>
+                    {selectedTeam && selectedTeam !== '' && (
+                      <p className="text-xs font-bold text-slate-400 mt-1">
+                        {teams.find(t => t.id === selectedTeam)?.name || 'Selected Team'}
+                      </p>
+                    )}
+                    {(!selectedTeam || selectedTeam === '') && (
+                      <p className="text-xs font-bold text-amber-600 mt-1 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Select a team to view timesheet
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <h2 className="text-2xl font-black text-slate-900">Team Timesheets</h2>
               </div>
               <TimesheetView teamId={selectedTeam} />
             </div>
