@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AdminRequestsView from '@/components/AdminRequestsView'
 import TimesheetView from '@/components/TimesheetView'
-import TeamManagement from '@/components/TeamManagement'
+import AdminMembersView from '@/components/AdminMembersView'
 import DashboardNav from '@/components/DashboardNav'
 
 export default function AdminPage() {
@@ -13,6 +13,7 @@ export default function AdminPage() {
   const [user, setUser] = useState<any>(null)
   const [teams, setTeams] = useState<any[]>([])
   const [selectedTeam, setSelectedTeam] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<'requests' | 'timesheets' | 'members'>('requests')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -121,12 +122,63 @@ export default function AdminPage() {
       />
 
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Admin Control Panel</h1>
-            <p className="mt-1 text-slate-500 font-medium">Manage team requests, timesheets, and configurations.</p>
-          </div>
-          <div className="w-full md:w-80 bg-white p-1.5 rounded-2xl shadow-sm border-2 border-slate-200 hover:border-indigo-300 transition-colors">
+        <div className="mb-10">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Admin Control Panel</h1>
+          <p className="text-slate-500 font-medium">Manage team requests, timesheets, and members.</p>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-8 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 inline-flex">
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${
+              activeTab === 'requests'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Pending Requests
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('timesheets')}
+            className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${
+              activeTab === 'timesheets'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Timesheets
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${
+              activeTab === 'members'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Members
+            </div>
+          </button>
+        </div>
+
+        {/* Team Selector (for requests and timesheets) */}
+        {(activeTab === 'requests' || activeTab === 'timesheets') && (
+          <div className="mb-6 w-full md:w-80 bg-white p-1.5 rounded-2xl shadow-sm border-2 border-slate-200 hover:border-indigo-300 transition-colors">
             <div className="flex items-center gap-2 px-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -145,10 +197,11 @@ export default function AdminPage() {
               </select>
             </div>
           </div>
-        </div>
+        )}
 
+        {/* Tab Content */}
         <div className="space-y-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {activeTab === 'requests' && (
             <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] p-10 border border-slate-100">
               <div className="flex items-center gap-3 mb-8">
                 <div className="p-3 bg-amber-50 text-amber-600 rounded-[1.25rem] shadow-sm">
@@ -163,7 +216,9 @@ export default function AdminPage() {
                 selectedTeamId={selectedTeam}
               />
             </div>
+          )}
 
+          {activeTab === 'timesheets' && (
             <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] p-10 border border-slate-100">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
@@ -192,14 +247,24 @@ export default function AdminPage() {
               </div>
               <TimesheetView teamId={selectedTeam} />
             </div>
-          </div>
+          )}
 
-          <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] p-10 border border-slate-100">
-            <TeamManagement 
-              teamId={selectedTeam} 
-              userRole={teams.find(t => t.id === selectedTeam)?.role || 'MEMBER'} 
-            />
-          </div>
+          {activeTab === 'members' && (
+            <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.03)] rounded-[3rem] p-10 border border-slate-100">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-[1.25rem] shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900">All Members</h2>
+                  <p className="text-xs font-bold text-slate-400 mt-1">Manage members across all your teams</p>
+                </div>
+              </div>
+              <AdminMembersView teamIds={teams.map(t => t.id)} />
+            </div>
+          )}
         </div>
       </main>
     </div>
