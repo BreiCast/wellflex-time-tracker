@@ -296,3 +296,70 @@ export async function DELETE(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { teamId: string } }
+) {
+  try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const supabase = createServiceSupabaseClient()
+    const { teamId } = params
+    const body = await request.json()
+    const { user_id, role } = z.object({
+      user_id: z.string().uuid(),
+      role: z.enum(['MEMBER', 'MANAGER', 'ADMIN']),
+    }).parse(body)
+
+    // Verify requesting user is admin of team
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('role')
+      .eq('team_id', teamId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!teamMember || (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Only admins can change member roles' },
+        { status: 403 }
+      )
+    }
+
+    // Update role
+    const { data: updatedMember, error } = await supabase
+      .from('team_members')
+      .update({ role } as any)
+      .eq('team_id', teamId)
+      .eq('user_id', user_id)
+      .select('id, user_id, role, users(id, email, full_name)')
+      .single()
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json({ member: updatedMember })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: error.errors },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+

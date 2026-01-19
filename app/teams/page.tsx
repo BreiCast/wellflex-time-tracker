@@ -19,6 +19,7 @@ export default function TeamsPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [teams, setTeams] = useState<Team[]>([])
+  const [userRole, setUserRole] = useState<string>('MEMBER')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -71,6 +72,9 @@ export default function TeamsPage() {
       }
 
       if (teamMembers && teamMembers.length > 0) {
+        const hasManagementRole = teamMembers.some((tm: any) => tm.role === 'ADMIN' || tm.role === 'MANAGER')
+        setUserRole(hasManagementRole ? 'ADMIN' : 'MEMBER')
+
         const teamList = teamMembers
           .filter((tm: any) => tm.teams)
           .map((tm: any) => ({
@@ -281,6 +285,7 @@ export default function TeamsPage() {
           }
         }}
         userEmail={user?.email}
+        userRole={userRole}
         onLogout={handleLogout}
       />
 

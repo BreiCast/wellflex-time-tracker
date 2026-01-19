@@ -28,6 +28,7 @@ export default function TrackingPage() {
   const [user, setUser] = useState<any>(null)
   const [teams, setTeams] = useState<Array<{ id: string; name: string; color?: string }>>([])
   const [selectedTeam, setSelectedTeam] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('MEMBER')
   const [activeSession, setActiveSession] = useState<TimeSession | null>(null)
   const [teamProgress, setTeamProgress] = useState<Record<string, { current: number; scheduled: number }>>({})
   const [schedules, setSchedules] = useState<any[]>([])
@@ -68,6 +69,9 @@ export default function TrackingPage() {
         .eq('user_id', session.user.id)
 
       if (teamMembers && teamMembers.length > 0) {
+        const hasManagementRole = teamMembers.some((tm: any) => tm.role === 'ADMIN' || tm.role === 'MANAGER')
+        setUserRole(hasManagementRole ? 'ADMIN' : 'MEMBER')
+
         const teamList = teamMembers
           .filter((tm: any) => tm.teams)
           .map((tm: any) => ({
@@ -474,6 +478,7 @@ export default function TrackingPage() {
           }
         }}
         userEmail={user?.email}
+        userRole={userRole}
         onLogout={handleLogout}
       />
 

@@ -7,10 +7,11 @@ interface DashboardNavProps {
   activeTab: string
   onTabChange: (tab: string) => void
   userEmail?: string
+  userRole?: string
   onLogout: () => void
 }
 
-export default function DashboardNav({ activeTab, onTabChange, userEmail, onLogout }: DashboardNavProps) {
+export default function DashboardNav({ activeTab, onTabChange, userEmail, userRole, onLogout }: DashboardNavProps) {
   const router = useRouter()
   const pathname = usePathname()
   const currentTab = pathname === '/tracking' ? 'tracking' : activeTab
@@ -104,12 +105,14 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, onLogo
               <span className="text-sm font-semibold text-gray-700">{userEmail}</span>
             </div>
             
-            <button
-              onClick={() => router.push('/admin')}
-              className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
-            >
-              Admin View
-            </button>
+            {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
+              >
+                Admin View
+              </button>
+            )}
             
             <button
               onClick={onLogout}

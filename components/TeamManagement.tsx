@@ -11,6 +11,7 @@ interface TeamManagementProps {
 export default function TeamManagement({ teamId, userRole }: TeamManagementProps) {
   const [members, setMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'MEMBER' | 'MANAGER' | 'ADMIN'>('MEMBER')
@@ -46,8 +47,14 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
   }, [teamId])
 
   useEffect(() => {
+    const getUserId = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setCurrentUserId(user.id)
+    }
+    getUserId()
     loadMembers()
-  }, [loadMembers])
+  }, [teamId, loadMembers])
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,6 +128,36 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
       }
     } catch (error) {
       alert('Failed to remove member')
+    }
+  }
+
+  const handleUpdateRole = async (userId: string, newRole: 'MEMBER' | 'MANAGER' | 'ADMIN') => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) return
+
+      const response = await fetch(`/api/teams/${teamId}/members`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          role: newRole,
+        }),
+      })
+
+      if (response.ok) {
+        loadMembers()
+      } else {
+        const result = await response.json()
+        alert(result.error || 'Failed to update role')
+      }
+    } catch (error) {
+      alert('Failed to update role')
     }
   }
 
@@ -243,16 +280,32 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
                   <h4 className="font-black text-slate-900 text-lg leading-tight mb-1">{user?.full_name || 'No Name'}</h4>
                   <p className="text-xs font-bold text-slate-400 mb-4">{user?.email}</p>
                   
-                  <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                    member.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                    member.role === 'MANAGER' ? 'bg-emerald-100 text-emerald-700' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
-                      member.role === 'ADMIN' ? 'bg-indigo-500' : member.role === 'MANAGER' ? 'bg-emerald-500' : 'bg-slate-400'
-                    }`}></span>
-                    {member.role}
-                  </span>
+                  {canManage && userRole === 'ADMIN' && member.user_id !== currentUserId ? (
+                    <select
+                      value={member.role}
+                      onChange={(e) => handleUpdateRole(member.user_id, e.target.value as any)}
+                      className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer ${
+                        member.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
+                        member.role === 'MANAGER' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <option value="MEMBER">Member</option>
+                      <option value="MANAGER">Manager</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  ) : (
+                    <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                      member.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
+                      member.role === 'MANAGER' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                        member.role === 'ADMIN' ? 'bg-indigo-500' : member.role === 'MANAGER' ? 'bg-emerald-500' : 'bg-slate-400'
+                      }`}></span>
+                      {member.role}
+                    </span>
+                  )}
 
                   {canManage && userRole === 'ADMIN' && member.role !== 'ADMIN' && (
                     <button

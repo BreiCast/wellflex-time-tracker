@@ -46,7 +46,7 @@ function DashboardContent() {
       // Load user's teams directly from team_members
       const { data: teamMembers, error: teamError } = await supabase
         .from('team_members')
-        .select('team_id, teams(id, name)')
+        .select('team_id, role, teams(id, name)')
         .eq('user_id', session.user.id)
 
       if (teamError) {
@@ -55,6 +55,9 @@ function DashboardContent() {
       }
 
       if (teamMembers && teamMembers.length > 0) {
+        const hasManagementRole = teamMembers.some((tm: any) => tm.role === 'ADMIN' || tm.role === 'MANAGER')
+        setUserRole(hasManagementRole ? 'ADMIN' : 'MEMBER')
+
         const teamList = teamMembers
           .filter((tm: any) => tm.teams) // Filter out any null teams
           .map((tm: any) => ({
@@ -314,6 +317,8 @@ function DashboardContent() {
             setActiveTab(tab)
           }
         }}
+        userEmail={user?.email}
+        userRole={userRole}
         onLogout={handleLogout}
       />
 
