@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import AdminRequestsView from '@/components/AdminRequestsView'
 import TimesheetView from '@/components/TimesheetView'
 import TeamManagement from '@/components/TeamManagement'
+import DashboardNav from '@/components/DashboardNav'
 
 export default function AdminPage() {
   const router = useRouter()

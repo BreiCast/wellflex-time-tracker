@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import ClockInOut from '@/components/ClockInOut'
@@ -36,7 +36,7 @@ function DashboardContent() {
     setActiveTab(tab)
   }, [searchParams, router])
 
-  const loadTeams = async () => {
+  const loadTeams = useCallback(async () => {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
@@ -86,7 +86,7 @@ function DashboardContent() {
       console.error('Error in loadTeams:', error)
     }
     return []
-  }
+  }, [selectedTeam])
 
   useEffect(() => {
     const loadData = async () => {
@@ -131,7 +131,7 @@ function DashboardContent() {
     }
 
     loadData()
-  }, [router])
+  }, [router, loadTeams])
 
   const handleLogout = async () => {
     const supabase = createClient()

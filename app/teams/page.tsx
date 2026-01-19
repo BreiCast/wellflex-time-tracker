@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -47,7 +47,7 @@ export default function TeamsPage() {
   const [deletingTeam, setDeletingTeam] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const loadTeams = async () => {
+  const loadTeams = useCallback(async () => {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
@@ -90,7 +90,7 @@ export default function TeamsPage() {
       console.error('Error in loadTeams:', error)
       setError(`Failed to load teams: ${error.message || 'Unknown error'}`)
     }
-  }
+  }, [router])
 
   useEffect(() => {
     const loadData = async () => {
@@ -108,7 +108,7 @@ export default function TeamsPage() {
     }
 
     loadData()
-  }, [router])
+  }, [router, loadTeams])
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -628,7 +628,7 @@ export default function TeamsPage() {
               </table>
             </div>
           </div>
-        )}}
+        )}
       </main>
     </div>
   )

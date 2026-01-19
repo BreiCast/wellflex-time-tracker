@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface RequestsViewProps {
@@ -17,11 +17,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     description: '',
   })
 
-  useEffect(() => {
-    loadRequests()
-  }, [userId, teamId])
-
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     if (!teamId) return
 
     setLoading(true)
@@ -42,7 +38,11 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId, teamId])
+
+  useEffect(() => {
+    loadRequests()
+  }, [loadRequests])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

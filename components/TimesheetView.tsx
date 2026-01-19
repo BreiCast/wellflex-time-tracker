@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatMinutes } from '@/lib/utils/timesheet'
 import CalendarView from './CalendarView'
@@ -41,7 +41,8 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setCurrentUser(session.user)
-        if (!selectedUserId) setSelectedUserId(session.user.id)
+        // Only set selectedUserId if not already set by props or state
+        setSelectedUserId(prev => prev || initialUserId || session.user.id)
         
         // Load user role and members if MANAGER/ADMIN
         const { data: memberData } = await supabase
@@ -73,13 +74,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     init()
   }, [teamId, initialUserId])
 
-  useEffect(() => {
-    if (selectedUserId && teamId) {
-      loadTimesheet()
-    }
-  }, [selectedUserId, teamId, dateRange])
-
-  const loadTimesheet = async () => {
+  const loadTimesheet = useCallback(async () => {
     setLoading(true)
     try {
       const supabase = createClient()
@@ -104,7 +99,13 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedUserId, teamId, dateRange])
+
+  useEffect(() => {
+    if (selectedUserId && teamId) {
+      loadTimesheet()
+    }
+  }, [selectedUserId, teamId, dateRange, loadTimesheet])
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))

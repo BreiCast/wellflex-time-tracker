@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Schedule {
@@ -32,11 +32,7 @@ export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleM
   const [endTime, setEndTime] = useState('17:00')
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    loadSchedules()
-  }, [teamId])
-
-  const loadSchedules = async () => {
+  const loadSchedules = useCallback(async () => {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
@@ -53,7 +49,11 @@ export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleM
       setSchedules(result.schedules || [])
     }
     setLoading(false)
-  }
+  }, [teamId])
+
+  useEffect(() => {
+    loadSchedules()
+  }, [loadSchedules])
 
   const handleSaveSchedule = async (dayOfWeek: number) => {
     setSaving(true)

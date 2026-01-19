@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface AdminRequestsViewProps {
@@ -11,11 +11,7 @@ export default function AdminRequestsView({ teamId }: AdminRequestsViewProps) {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadRequests()
-  }, [teamId])
-
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     if (!teamId) return
 
     setLoading(true)
@@ -36,7 +32,11 @@ export default function AdminRequestsView({ teamId }: AdminRequestsViewProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [teamId])
+
+  useEffect(() => {
+    loadRequests()
+  }, [loadRequests])
 
   const handleReview = async (requestId: string, status: 'APPROVED' | 'REJECTED', notes?: string) => {
     try {

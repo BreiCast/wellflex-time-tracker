@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DashboardNav from '@/components/DashboardNav'
@@ -55,7 +55,7 @@ export default function TrackingPage() {
     return () => clearInterval(timer)
   }, [])
 
-  const loadTeams = async () => {
+  const loadTeams = useCallback(async () => {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
@@ -85,9 +85,9 @@ export default function TrackingPage() {
       console.error('Error loading teams:', error)
     }
     return []
-  }
+  }, [selectedTeam])
 
-  const loadActiveSession = async () => {
+  const loadActiveSession = useCallback(async () => {
     if (!user) return
 
     const supabase = createClient()
@@ -115,9 +115,9 @@ export default function TrackingPage() {
       setActiveSession(null)
       setActiveBreak(null)
     }
-  }
+  }, [user])
 
-  const loadSchedules = async () => {
+  const loadSchedules = useCallback(async () => {
     if (!user) return
 
     const supabase = createClient()
@@ -183,9 +183,9 @@ export default function TrackingPage() {
       })
       setTeamProgress(progress)
     }
-  }
+  }, [user, currentTime, teams])
 
-  const loadTodayStats = async () => {
+  const loadTodayStats = useCallback(async () => {
     if (!user) return
 
     const supabase = createClient()
@@ -242,9 +242,9 @@ export default function TrackingPage() {
         workSeconds: totalSeconds - breakSeconds,
       })
     }
-  }
+  }, [user, currentTime, activeSession, activeBreak])
 
-  const loadRecentSessions = async () => {
+  const loadRecentSessions = useCallback(async () => {
     if (!user) return
 
     const supabase = createClient()
@@ -258,7 +258,7 @@ export default function TrackingPage() {
     if (sessions) {
       setRecentSessions(sessions)
     }
-  }
+  }, [user])
 
   useEffect(() => {
     const loadData = async () => {
@@ -276,7 +276,7 @@ export default function TrackingPage() {
     }
 
     loadData()
-  }, [router])
+  }, [router, loadTeams])
 
   useEffect(() => {
     if (user) {
@@ -285,7 +285,7 @@ export default function TrackingPage() {
       loadRecentSessions()
       loadSchedules()
     }
-  }, [user, currentTime, teams])
+  }, [user, loadActiveSession, loadTodayStats, loadRecentSessions, loadSchedules])
 
   const handleClockIn = async () => {
     if (!selectedTeam) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface TeamManagementProps {
@@ -17,11 +17,7 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
   const [inviteLoading, setInviteLoading] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    loadMembers()
-  }, [teamId])
-
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     if (!teamId) return
 
     setLoading(true)
@@ -47,7 +43,11 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
     } finally {
       setLoading(false)
     }
-  }
+  }, [teamId])
+
+  useEffect(() => {
+    loadMembers()
+  }, [loadMembers])
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
