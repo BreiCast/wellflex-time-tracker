@@ -240,12 +240,26 @@ export async function DELETE(
 
     const supabase = createServiceSupabaseClient()
     const { teamId } = params
+    
+    // Support both query param (legacy) and body (new)
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
-
+    let userId = searchParams.get('user_id')
+    let membershipId: string | null = null
+    
+    // Try to get from body if not in query params
     if (!userId) {
+      try {
+        const body = await request.json()
+        userId = body.user_id || null
+        membershipId = body.membership_id || null
+      } catch {
+        // Body might be empty, that's okay
+      }
+    }
+
+    if (!userId && !membershipId) {
       return NextResponse.json(
-        { error: 'user_id is required' },
+        { error: 'user_id or membership_id is required' },
         { status: 400 }
       )
     }
@@ -265,20 +279,40 @@ export async function DELETE(
       )
     }
 
-    // Don't allow removing yourself
-    if (userId === user.id) {
+    // Don't allow removing yourself - check by membership_id or user_id
+    if (membershipId) {
+      const { data: membership } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('id', membershipId)
+        .single()
+      
+      if (membership && (membership as { user_id: string }).user_id === user.id) {
+        return NextResponse.json(
+          { error: 'You cannot remove yourself from the team' },
+          { status: 400 }
+        )
+      }
+    } else if (userId === user.id) {
       return NextResponse.json(
         { error: 'You cannot remove yourself from the team' },
         { status: 400 }
       )
     }
 
-    // Remove member
-    const { error } = await supabase
+    // Remove member - use membership_id if provided, otherwise use user_id
+    let deleteQuery = supabase
       .from('team_members')
       .delete()
       .eq('team_id', teamId)
-      .eq('user_id', userId)
+    
+    if (membershipId) {
+      deleteQuery = deleteQuery.eq('id', membershipId)
+    } else {
+      deleteQuery = deleteQuery.eq('user_id', userId!)
+    }
+    
+    const { error } = await deleteQuery
 
     if (error) {
       return NextResponse.json(
