@@ -191,7 +191,7 @@ function ResetPasswordContent() {
         <div className="text-center mb-10">
           <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center">
             <img 
-              src="/wellflex-logo.png" 
+              src="/wellflex_logo.jpg" 
               alt="Wellflex Logo" 
               className="w-full h-full object-contain"
               onError={(e) => {
