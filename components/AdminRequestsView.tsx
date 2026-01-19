@@ -21,27 +21,42 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
     setLoading(true)
     try {
       const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
       
-      // Build query - filter by team IDs and status
-      // If selectedTeamId is empty string, show all teams; otherwise filter by selected team
+      if (!session) {
+        setLoading(false)
+        return
+      }
+
+      // Use API route with service role to bypass RLS issues
       const teamIdsToQuery = selectedTeamId && selectedTeamId !== '' ? [selectedTeamId] : teamIds
       
-      let query = supabase
-        .from('requests')
-        .select('*, users(email, full_name), teams(id, name, color)')
-        .in('team_id', teamIdsToQuery)
-        .eq('status', 'PENDING')
-        .order('created_at', { ascending: false })
+      const response = await fetch('/api/admin/requests', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
 
-      const { data: requestData, error } = await query
+      const result = await response.json()
 
-      if (error) {
-        console.error('Failed to load requests:', error)
+      if (!response.ok) {
+        console.error('Failed to load requests:', result.error, result.details)
         setRequests([])
-      } else if (requestData) {
-        setRequests(requestData)
       } else {
-        setRequests([])
+        // Filter by selected team if needed
+        let filteredRequests = result.requests || []
+        if (selectedTeamId && selectedTeamId !== '') {
+          filteredRequests = filteredRequests.filter((req: any) => req.team_id === selectedTeamId)
+        }
+        
+        console.log('Loaded requests:', {
+          total: result.requests?.length || 0,
+          filtered: filteredRequests.length,
+          teamIds: result.teamIds,
+          selectedTeamId,
+        })
+        
+        setRequests(filteredRequests)
       }
     } catch (error) {
       console.error('Failed to load requests:', error)
