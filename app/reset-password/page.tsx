@@ -193,7 +193,7 @@ function ResetPasswordContent() {
             <img 
               src="/wellflex_logo.jpg" 
               alt="Wellflex Logo" 
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain rounded-2xl"
               onError={(e) => {
                 // Fallback to SVG if image not found
                 const target = e.target as HTMLImageElement

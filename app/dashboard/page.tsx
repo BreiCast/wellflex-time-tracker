@@ -72,8 +72,14 @@ function DashboardContent() {
             name: tm.teams.name,
           }))
         setTeams(teamList)
-        // Only set default team if no team is selected
-        if (teamList.length > 0 && !selectedTeam) {
+        
+        // Check URL parameter first, then selectedTeam, then default to first team
+        const teamParam = searchParams.get('team')
+        if (teamParam && teamList.some(t => t.id === teamParam)) {
+          // URL parameter takes precedence
+          setSelectedTeam(teamParam)
+        } else if (teamList.length > 0 && !selectedTeam) {
+          // Only set default team if no team is selected and no valid URL param
           setSelectedTeam(teamList[0].id)
         }
         
