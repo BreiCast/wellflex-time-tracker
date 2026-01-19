@@ -19,6 +19,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   const [selectedUserId, setSelectedUserId] = useState<string>(initialUserId || '')
   const [members, setMembers] = useState<any[]>([])
   const [userRole, setUserRole] = useState<string>('MEMBER')
+  const [viewAllMembers, setViewAllMembers] = useState(false)
   
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date()
@@ -81,8 +82,11 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
+      // If "all" is selected, use special endpoint or pass "all" as user_id
+      const userIdParam = selectedUserId === 'all' ? 'all' : selectedUserId
+      
       const response = await fetch(
-        `/api/timesheet?user_id=${selectedUserId}&team_id=${teamId}&start_date=${dateRange.start}&end_date=${dateRange.end}`,
+        `/api/timesheet?user_id=${userIdParam}&team_id=${teamId}&start_date=${dateRange.start}&end_date=${dateRange.end}`,
         {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -93,6 +97,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
       const result = await response.json()
       if (response.ok) {
         setTimesheet(result.timesheet || [])
+        setViewAllMembers(result.viewAllMembers || false)
       }
     } catch (error) {
       console.error('Failed to load timesheet:', error)
@@ -102,15 +107,15 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   }, [selectedUserId, teamId, dateRange])
 
   useEffect(() => {
-    if (selectedUserId) {
-      // Only require teamId if it's not empty (not "All Teams")
-      if (teamId && teamId !== '') {
+    // Only require teamId if it's not empty (not "All Teams")
+    if (teamId && teamId !== '') {
+      if (selectedUserId) {
         loadTimesheet()
-      } else if (teamId === '') {
-        // When "All Teams" is selected, show empty state or aggregate
-        setTimesheet([])
-        setLoading(false)
       }
+    } else if (teamId === '') {
+      // When "All Teams" is selected, show empty state or aggregate
+      setTimesheet([])
+      setLoading(false)
     }
   }, [selectedUserId, teamId, dateRange, loadTimesheet])
 
@@ -177,6 +182,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
               onChange={(e) => setSelectedUserId(e.target.value)}
               className="bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-black text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm hover:border-slate-300 transition-colors"
             >
+              <option value="all">All Members</option>
               {members.map(member => (
                 <option key={member.id} value={member.id}>
                   {member.name}
@@ -259,6 +265,9 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Date</th>
+                  {viewAllMembers && (
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Member</th>
+                  )}
                   <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Clock In</th>
                   <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Clock Out</th>
                   <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Break</th>
@@ -267,13 +276,20 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
-                {timesheet.filter(e => e.totalMinutes > 0 || e.adjustments.length > 0).map((entry) => (
-                  <tr key={entry.date} className="hover:bg-slate-50 transition-colors">
+                {timesheet.filter(e => e.totalMinutes > 0 || e.adjustments.length > 0).map((entry, index) => (
+                  <tr key={`${entry.date}-${entry.user_id || ''}-${index}`} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-slate-900">
                         {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                       </div>
                     </td>
+                    {viewAllMembers && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-black text-slate-700">
+                          {entry.user_name || 'Unknown'}
+                        </div>
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-slate-600 font-mono">
                         {entry.clockIn ? new Date(entry.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
@@ -307,7 +323,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                 ))}
                 {timesheet.filter(e => e.totalMinutes > 0 || e.adjustments.length > 0).length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold">
+                    <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-12 text-center text-slate-400 font-bold">
                       No records found for this period
                     </td>
                   </tr>

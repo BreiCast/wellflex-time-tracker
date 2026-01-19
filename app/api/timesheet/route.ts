@@ -28,13 +28,14 @@ export async function GET(request: NextRequest) {
     const { user_id, team_id, start_date, end_date } = getTimesheetSchema.parse(params)
 
     // Determine target user_id
-    let targetUserId = user_id || user.id
+    const viewAllMembers = user_id === 'all'
+    let targetUserId = user_id && user_id !== 'all' ? user_id : user.id
 
-    // If requesting different user, verify permissions
-    if (targetUserId !== user.id) {
+    // If requesting different user or all members, verify permissions
+    if (viewAllMembers || targetUserId !== user.id) {
       if (!team_id) {
         return NextResponse.json(
-          { error: 'team_id required when viewing other users' },
+          { error: 'team_id required when viewing other users or all members' },
           { status: 400 }
         )
       }
@@ -58,11 +59,26 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(start_date)
     const endDate = new Date(end_date)
 
-    // Fetch time sessions
+    // If viewing all members, get all team member user IDs
+    let targetUserIds: string[] = []
+    if (viewAllMembers && team_id) {
+      const { data: teamMembers } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', team_id)
+      
+      if (teamMembers) {
+        targetUserIds = teamMembers.map((tm: any) => tm.user_id)
+      }
+    } else {
+      targetUserIds = [targetUserId]
+    }
+
+    // Fetch time sessions for all target users
     let sessionsQuery = supabase
       .from('time_sessions')
       .select('*')
-      .eq('user_id', targetUserId)
+      .in('user_id', targetUserIds)
       .gte('clock_in_at', startDate.toISOString())
       .lte('clock_in_at', endDate.toISOString())
 
@@ -71,6 +87,22 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: sessions, error: sessionsError } = await sessionsQuery
+
+    // Fetch user data separately
+    let usersData: Record<string, any> = {}
+    if (viewAllMembers && sessions && sessions.length > 0) {
+      const uniqueUserIds = [...new Set(sessions.map((s: any) => s.user_id))]
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, email, full_name')
+        .in('id', uniqueUserIds)
+      
+      if (users) {
+        users.forEach((u: any) => {
+          usersData[u.id] = u
+        })
+      }
+    }
 
     if (sessionsError) {
       return NextResponse.json(
@@ -95,11 +127,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch adjustments
+    // Fetch adjustments for all target users
     let adjustmentsQuery = supabase
       .from('adjustments')
       .select('*')
-      .eq('user_id', targetUserId)
+      .in('user_id', targetUserIds)
       .gte('effective_date', start_date)
       .lte('effective_date', end_date)
 
@@ -116,16 +148,63 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Calculate timesheet
-    const timesheet = calculateTimesheet(
-      sessions || [],
-      breaks || [],
-      adjustments || [],
-      startDate,
-      endDate
-    )
-
-    return NextResponse.json({ timesheet })
+    // Calculate timesheet - if viewing all members, group by user
+    if (viewAllMembers) {
+      // Group sessions, breaks, and adjustments by user
+      const timesheetsByUser: Record<string, any> = {}
+      
+      for (const userId of targetUserIds) {
+        const userSessions = sessions?.filter((s: any) => s.user_id === userId) || []
+        const userSessionIds = userSessions.map((s: any) => s.id)
+        const userBreaks = breaks?.filter((b: any) => userSessionIds.includes(b.time_session_id)) || []
+        const userAdjustments = adjustments?.filter((a: any) => a.user_id === userId) || []
+        
+        const userTimesheet = calculateTimesheet(
+          userSessions,
+          userBreaks,
+          userAdjustments,
+          startDate,
+          endDate
+        )
+        
+        // Add user info to each entry
+        const userInfo = usersData[userId] || null
+        timesheetsByUser[userId] = {
+          user: userInfo,
+          timesheet: userTimesheet.map(entry => ({
+            ...entry,
+            user_id: userId,
+            user_name: userInfo?.full_name || userInfo?.email || 'Unknown',
+          })),
+        }
+      }
+      
+      // Combine all timesheets into one array
+      const allEntries: any[] = []
+      Object.values(timesheetsByUser).forEach((userData: any) => {
+        allEntries.push(...userData.timesheet)
+      })
+      
+      // Sort by date, then by user name
+      allEntries.sort((a, b) => {
+        const dateCompare = a.date.localeCompare(b.date)
+        if (dateCompare !== 0) return dateCompare
+        return a.user_name.localeCompare(b.user_name)
+      })
+      
+      return NextResponse.json({ timesheet: allEntries, viewAllMembers: true })
+    } else {
+      // Single user view
+      const timesheet = calculateTimesheet(
+        sessions || [],
+        breaks || [],
+        adjustments || [],
+        startDate,
+        endDate
+      )
+      
+      return NextResponse.json({ timesheet, viewAllMembers: false })
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

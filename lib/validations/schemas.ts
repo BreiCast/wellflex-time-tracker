@@ -48,7 +48,7 @@ export const createAdjustmentSchema = z.object({
 })
 
 export const getTimesheetSchema = z.object({
-  user_id: z.string().uuid().optional(),
+  user_id: z.union([z.string().uuid(), z.literal('all')]).optional(),
   team_id: z.string().uuid().optional(),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
