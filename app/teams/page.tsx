@@ -379,7 +379,7 @@ export default function TeamsPage() {
                     type="text"
                     value={newTeamColor}
                     onChange={(e) => setNewTeamColor(e.target.value)}
-                    pattern="^#[0-9A-F]{6}$"
+                    pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono font-bold"
                     placeholder="#6366f1"
                   />
@@ -463,7 +463,7 @@ export default function TeamsPage() {
                                   type="text"
                                   value={editTeamColor}
                                   onChange={(e) => setEditTeamColor(e.target.value)}
-                                  pattern="^#[0-9A-F]{6}$"
+                                  pattern="^#[0-9A-Fa-f]{6}$"
                                   className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-lg font-mono text-xs font-black text-slate-500"
                                 />
                               </div>
