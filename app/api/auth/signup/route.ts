@@ -5,7 +5,7 @@ import { z } from 'zod'
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
-  full_name: z.string().optional(),
+  full_name: z.string().min(1, 'Full name is required').max(255),
 })
 
 export async function POST(request: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       password,
       options: {
         data: {
-          full_name: full_name || null,
+          full_name: full_name,
         },
         emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
       },

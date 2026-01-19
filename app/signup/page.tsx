@@ -19,6 +19,13 @@ export default function SignupPage() {
     setError('')
     setLoading(true)
 
+    // Validate full name
+    if (!fullName.trim()) {
+      setError('Full name is required')
+      setLoading(false)
+      return
+    }
+
     try {
       const supabase = createClient()
       const { data, error } = await supabase.auth.signUp({
@@ -145,6 +152,7 @@ export default function SignupPage() {
                   name="fullName"
                   type="text"
                   required
+                  minLength={1}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="John Doe"
