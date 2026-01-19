@@ -19,43 +19,108 @@ interface Schedule {
 
 interface ScheduleManagerProps {
   teamId: string
+  userId?: string // Optional: if provided, manage this user's schedule (admin only)
+  userRole?: 'MEMBER' | 'MANAGER' | 'ADMIN' // User's role to determine permissions
   onScheduleUpdated?: () => void
 }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleManagerProps) {
+export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', onScheduleUpdated }: ScheduleManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [editingDay, setEditingDay] = useState<number | null>(null)
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('17:00')
   const [saving, setSaving] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [targetUserId, setTargetUserId] = useState<string | null>(userId || null)
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+
+  // Load current user ID and team members (for admin mode)
+  useEffect(() => {
+    const init = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setCurrentUserId(session.user.id)
+        
+        // If admin and no userId provided, load team members
+        if ((userRole === 'ADMIN' || userRole === 'MANAGER') && !userId) {
+          const { data: members } = await supabase
+            .from('team_members')
+            .select('user_id, users(id, email, full_name)')
+            .eq('team_id', teamId)
+          
+          if (members) {
+            const memberList = members.map((m: any) => ({
+              id: m.user_id,
+              name: m.users?.full_name || m.users?.email,
+              email: m.users?.email,
+            }))
+            setTeamMembers(memberList)
+            // Default to current user if no target user set
+            if (!targetUserId) {
+              setTargetUserId(session.user.id)
+              setSelectedUser(memberList.find(m => m.id === session.user.id) || memberList[0])
+            }
+          }
+        } else {
+          // Regular user or specific userId provided
+          setTargetUserId(userId || session.user.id)
+        }
+      }
+    }
+    init()
+  }, [teamId, userId, userRole])
 
   const loadSchedules = useCallback(async () => {
+    if (!targetUserId) return
+
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
     if (!session) return
 
-    const response = await fetch(`/api/schedules?team_id=${teamId}`, {
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-    })
-
-    const result = await response.json()
-    if (response.ok) {
-      setSchedules(result.schedules || [])
+    // Use admin API if managing another user's schedule
+    const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER')
+    
+    if (isManagingOtherUser) {
+      // Use admin endpoint to get another user's schedules
+      const response = await fetch(`/api/admin/schedules?team_id=${teamId}&user_id=${targetUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+      const result = await response.json()
+      if (response.ok) {
+        setSchedules(result.schedules || [])
+      }
+    } else {
+      // Regular user endpoint
+      const response = await fetch(`/api/schedules?team_id=${teamId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+      const result = await response.json()
+      if (response.ok) {
+        setSchedules(result.schedules || [])
+      }
     }
     setLoading(false)
-  }, [teamId])
+  }, [teamId, targetUserId, userRole])
 
   useEffect(() => {
-    loadSchedules()
-  }, [loadSchedules])
+    if (targetUserId) {
+      loadSchedules()
+    }
+  }, [targetUserId, loadSchedules])
 
   const handleSaveSchedule = async (dayOfWeek: number) => {
+    if (!targetUserId) return
+    
     setSaving(true)
     try {
       const supabase = createClient()
@@ -63,13 +128,19 @@ export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleM
       
       if (!session) throw new Error('Not authenticated')
 
-      const response = await fetch('/api/schedules', {
+      const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER')
+      
+      // Use admin endpoint if managing another user's schedule
+      const endpoint = isManagingOtherUser ? '/api/admin/schedules' : '/api/schedules'
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
+          user_id: targetUserId,
           team_id: teamId,
           day_of_week: dayOfWeek,
           start_time: startTime,
@@ -102,7 +173,10 @@ export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleM
       
       if (!session) throw new Error('Not authenticated')
 
-      const response = await fetch(`/api/schedules?id=${scheduleId}`, {
+      const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER')
+      const endpoint = isManagingOtherUser ? `/api/admin/schedules?id=${scheduleId}` : `/api/schedules?id=${scheduleId}`
+
+      const response = await fetch(endpoint, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -120,12 +194,56 @@ export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleM
     }
   }
 
-  if (loading) {
-    return <div className="text-sm text-slate-400">Loading schedule...</div>
+  const handleUserChange = (newUserId: string) => {
+    setTargetUserId(newUserId)
+    setSelectedUser(teamMembers.find(m => m.id === newUserId))
+    setSchedules([])
+    setLoading(true)
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Loading schedule...</p>
+      </div>
+    )
+  }
+
+  const isAdminMode = (userRole === 'ADMIN' || userRole === 'MANAGER') && !userId && teamMembers.length > 0
+  const isManagingOtherUser = targetUserId && currentUserId && targetUserId !== currentUserId
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* User Selector for Admins */}
+      {isAdminMode && (
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 mb-6">
+          <label className="block text-xs font-black text-indigo-700 uppercase tracking-widest mb-2">
+            Manage Schedule For
+          </label>
+          <select
+            value={targetUserId || ''}
+            onChange={(e) => handleUserChange(e.target.value)}
+            className="w-full px-4 py-3 bg-white border-2 border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-bold text-slate-700"
+          >
+            {teamMembers.map(member => (
+              <option key={member.id} value={member.id}>
+                {member.name} {member.id === currentUserId ? '(You)' : ''}
+              </option>
+            ))}
+          </select>
+          {isManagingOtherUser && selectedUser && (
+            <p className="mt-2 text-xs font-bold text-indigo-600 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Managing schedule for {selectedUser.name}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-3">
       {DAYS.map((day, index) => {
         const schedule = schedules.find(s => s.day_of_week === index)
         const isEditing = editingDay === index
@@ -213,6 +331,7 @@ export default function ScheduleManager({ teamId, onScheduleUpdated }: ScheduleM
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

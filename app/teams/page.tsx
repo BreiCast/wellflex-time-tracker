@@ -611,7 +611,8 @@ export default function TeamsPage() {
                                 </div>
                                 <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100">
                                   <ScheduleManager 
-                                    teamId={team.id} 
+                                    teamId={team.id}
+                                    userRole={userRole as 'MEMBER' | 'MANAGER' | 'ADMIN'}
                                     onScheduleUpdated={async () => {
                                       await loadSchedules()
                                     }}
