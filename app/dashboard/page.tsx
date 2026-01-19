@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import ClockInOut from '@/components/ClockInOut'
@@ -14,7 +14,7 @@ import TeamManagement from '@/components/TeamManagement'
 
 export const dynamic = 'force-dynamic'
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [user, setUser] = useState<any>(null)
@@ -169,14 +169,6 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-lg text-gray-600">Loading...</div>
-      </div>
-    )
-  }
-
   const renderTabContent = () => {
     if (teams.length === 0) {
       return (
@@ -304,6 +296,14 @@ export default function DashboardPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-lg text-gray-600">Loading...</div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardNav
@@ -313,10 +313,8 @@ export default function DashboardPage() {
             router.push('/tracking')
           } else {
             setActiveTab(tab)
-            router.push(`/dashboard?tab=${tab}`)
           }
         }}
-        userEmail={user?.email}
         onLogout={handleLogout}
       />
 
@@ -324,5 +322,20 @@ export default function DashboardPage() {
         {renderTabContent()}
       </main>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }
