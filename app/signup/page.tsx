@@ -73,10 +73,24 @@ export default function SignupPage() {
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+          <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+            <img 
+              src="/wellflex-logo.png" 
+              alt="Wellflex Logo" 
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                // Fallback to SVG if image not found
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+                const fallback = target.nextElementSibling as HTMLElement
+                if (fallback) fallback.style.display = 'flex'
+              }}
+            />
+            <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-200 hidden">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
           </div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tighter">WELLFLEX</h1>
           <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Time Tracker</p>
