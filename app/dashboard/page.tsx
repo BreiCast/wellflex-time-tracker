@@ -226,9 +226,8 @@ function DashboardContent() {
               selectedTeam={selectedTeam}
               onTeamChange={setSelectedTeam}
             />
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Timesheet</h2>
-              <TimesheetView userId={user?.id} teamId={selectedTeam} />
+            <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[2.5rem] p-8 border border-slate-100">
+              <TimesheetView teamId={selectedTeam} />
             </div>
           </div>
         )

@@ -751,7 +751,10 @@ export default function TrackingPage() {
                 Last 10 recorded work sessions
               </p>
             </div>
-            <button className="group px-6 py-3 text-sm font-black text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100 rounded-2xl transition-all duration-300 flex items-center">
+            <button 
+              onClick={() => router.push('/dashboard?tab=timesheet')}
+              className="group px-6 py-3 text-sm font-black text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100 rounded-2xl transition-all duration-300 flex items-center"
+            >
               Full Timesheet 
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />

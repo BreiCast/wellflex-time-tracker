@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AdminRequestsView from '@/components/AdminRequestsView'
-import AdminTimesheetView from '@/components/AdminTimesheetView'
+import TimesheetView from '@/components/TimesheetView'
 import TeamManagement from '@/components/TeamManagement'
 
 export default function AdminPage() {
@@ -157,7 +157,7 @@ export default function AdminPage() {
 
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-semibold mb-4">Team Timesheets</h2>
-              <AdminTimesheetView teamId={selectedTeam} />
+              <TimesheetView teamId={selectedTeam} />
             </div>
           </div>
 
