@@ -74,12 +74,15 @@ export async function middleware(request: NextRequest) {
       }
     )
 
-    // Refresh user session if needed
+    // Refresh user session if needed (with timeout to prevent hanging)
     try {
-      await supabase.auth.getUser()
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 2000)
+      )
+      await Promise.race([supabase.auth.getUser(), timeoutPromise])
     } catch (error) {
-      // If auth check fails, just continue - don't block the request
-      console.error('Error getting user in middleware:', error)
+      // If auth check fails or times out, just continue - don't block the request
+      // This is expected for unauthenticated requests
     }
 
     return response
@@ -92,7 +95,15 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (images, etc.)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
 

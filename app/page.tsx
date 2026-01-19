@@ -10,15 +10,28 @@ export default function Home() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session) {
-        router.push('/dashboard')
-      } else {
+      try {
+        const supabase = createClient()
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        )
+        
+        const sessionPromise = supabase.auth.getSession()
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        
+        if (session) {
+          router.push('/dashboard')
+        } else {
+          router.push('/login')
+        }
+      } catch (error) {
+        console.error('Auth check error:', error)
+        // If auth check fails, redirect to login
         router.push('/login')
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     checkAuth()
   }, [router])
