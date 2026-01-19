@@ -82,91 +82,154 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   }
 
   if (loading) {
-    return <div className="text-gray-600">Loading requests...</div>
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Loading requests...</p>
+      </div>
+    )
   }
 
   return (
-    <div>
-      <div className="mb-4">
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mr-3 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            My Requests
+          </h3>
+          <p className="text-sm font-bold text-slate-400 mt-1 flex items-center">
+            <span className="w-2 h-2 bg-indigo-400 rounded-full mr-2"></span>
+            Submit and track your time correction requests
+          </p>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className={`flex items-center px-6 py-3 rounded-2xl font-black transition-all shadow-lg transform active:scale-95 ${
+            showForm 
+            ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' 
+            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
+          }`}
         >
-          {showForm ? 'Cancel' : 'New Request'}
+          {showForm ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Cancel
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              New Request
+            </>
+          )}
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="mb-4 p-4 bg-gray-50 rounded-lg">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Request Type
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.request_type}
-              onChange={(e) => setFormData({ ...formData, request_type: e.target.value })}
-              placeholder="e.g., Time Correction, Missing Clock Out"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              required
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Describe your request..."
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-          >
-            Submit Request
-          </button>
-        </form>
+        <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500">
+          <h4 className="text-lg font-black text-slate-900 mb-6">Create New Request</h4>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  Request Type
+                </label>
+                <select
+                  required
+                  value={formData.request_type}
+                  onChange={(e) => setFormData({ ...formData, request_type: e.target.value })}
+                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 appearance-none cursor-pointer"
+                >
+                  <option value="">Select a type...</option>
+                  <option value="Time Correction">Time Correction</option>
+                  <option value="Missing Clock Out">Missing Clock Out</option>
+                  <option value="Missing Clock In">Missing Clock In</option>
+                  <option value="Break Adjustment">Break Adjustment</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                Description
+              </label>
+              <textarea
+                required
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Please describe the correction needed (e.g., forgot to clock out at 5:00 PM, should have been 5:15 PM)"
+                rows={4}
+                className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 placeholder:text-slate-300"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all transform active:scale-95"
+            >
+              SUBMIT REQUEST
+            </button>
+          </form>
+        </div>
       )}
 
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-4">
         {requests.length === 0 ? (
-          <p className="text-gray-600">No requests yet</p>
+          <div className="py-20 text-center bg-slate-50/50 rounded-[3rem] border border-dashed border-slate-200">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-slate-400 font-bold text-xl tracking-tight">No requests yet</p>
+            <p className="text-slate-300 text-sm mt-2">When you submit a time correction, it will appear here.</p>
+          </div>
         ) : (
           requests.map((request) => (
             <div
               key={request.id}
-              className="p-4 border border-gray-200 rounded-lg"
+              className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 group"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-semibold">{request.request_type}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{request.description}</p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Created: {new Date(request.created_at).toLocaleString()}
-                  </p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                      request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                      request.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                        request.status === 'APPROVED' ? 'bg-emerald-500' :
+                        request.status === 'REJECTED' ? 'bg-rose-500' :
+                        'bg-amber-500 animate-pulse'
+                      }`}></span>
+                      {request.status}
+                    </span>
+                    <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
+                      {new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+                  <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{request.request_type}</h4>
+                  <p className="text-sm font-bold text-slate-500 mt-1 leading-relaxed">{request.description}</p>
+                  
+                  {request.review_notes && (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Admin Feedback</p>
+                      <p className="text-sm font-bold text-slate-600 italic">“{request.review_notes}”</p>
+                    </div>
+                  )}
                 </div>
-                <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    request.status === 'APPROVED'
-                      ? 'bg-green-100 text-green-800'
-                      : request.status === 'REJECTED'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}
-                >
-                  {request.status}
-                </span>
+                
+                <div className="flex flex-col items-end text-right">
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Submitted</span>
+                  <span className="text-sm font-bold text-slate-400">
+                    {new Date(request.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
-              {request.review_notes && (
-                <div className="mt-2 text-sm text-gray-600">
-                  <strong>Review:</strong> {request.review_notes}
-                </div>
-              )}
             </div>
           ))
         )}
