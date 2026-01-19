@@ -19,9 +19,11 @@ function ResetPasswordContent() {
   useEffect(() => {
     // Check if we have the required tokens in the URL
     const token_hash = searchParams.get('token_hash')
+    const token = searchParams.get('token')
     const type = searchParams.get('type')
 
-    if (!token_hash || type !== 'recovery') {
+    // Accept either token_hash (OTP flow) or token (PKCE/magic link flow)
+    if (!token_hash && !token) {
       setError('Invalid or missing reset token. Please request a new password reset.')
     }
   }, [searchParams])
@@ -46,23 +48,31 @@ function ResetPasswordContent() {
     try {
       const supabase = createClient()
       const token_hash = searchParams.get('token_hash')
+      const token = searchParams.get('token')
       const type = searchParams.get('type')
 
-      if (!token_hash || type !== 'recovery') {
-        throw new Error('Invalid reset token')
+      // Handle different token formats from Supabase
+      if (type === 'recovery' && token_hash) {
+        // Verify the OTP token first
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          type: 'recovery',
+          token_hash,
+        })
+
+        if (verifyError) {
+          throw verifyError
+        }
+      } else if (token) {
+        // Alternative flow: exchange code for session (PKCE/magic link)
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(token)
+        if (exchangeError) {
+          throw exchangeError
+        }
+      } else {
+        throw new Error('Invalid or missing reset token')
       }
 
-      // Verify the token first
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        type: 'recovery',
-        token_hash,
-      })
-
-      if (verifyError) {
-        throw verifyError
-      }
-
-      // Update the password
+      // Update the password (user should now be authenticated)
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
       })
@@ -76,16 +86,27 @@ function ResetPasswordContent() {
         router.push('/login')
       }, 2000)
     } catch (err: any) {
-      setError(err.message || 'Failed to reset password')
+      let errorMessage = err.message || 'Failed to reset password'
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('expired') || errorMessage.includes('invalid')) {
+        errorMessage = 'This password reset link is invalid or has expired. Please request a new one.'
+      } else if (errorMessage.includes('same password')) {
+        errorMessage = 'New password must be different from your current password.'
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
   const token_hash = searchParams.get('token_hash')
+  const token = searchParams.get('token')
   const type = searchParams.get('type')
 
-  if (!token_hash || type !== 'recovery') {
+  // Show error if we don't have any valid token
+  if (!token_hash && !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">

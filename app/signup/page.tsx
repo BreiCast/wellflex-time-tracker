@@ -11,6 +11,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState('')
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -47,17 +48,21 @@ export default function SignupPage() {
     } catch (err: any) {
       // Handle duplicate email errors
       let errorMessage = err.message || 'Failed to sign up'
+      let isDuplicate = false
       
       if (
         errorMessage.toLowerCase().includes('already registered') ||
         errorMessage.toLowerCase().includes('user already exists') ||
         errorMessage.toLowerCase().includes('email address is already') ||
-        errorMessage.toLowerCase().includes('already exists')
+        errorMessage.toLowerCase().includes('already exists') ||
+        err.code === 'user_already_exists'
       ) {
-        errorMessage = 'An account with this email address already exists. Please sign in instead.'
+        isDuplicate = true
+        errorMessage = 'An account with this email address already exists.'
       }
       
       setError(errorMessage)
+      setIsDuplicateEmail(isDuplicate)
     } finally {
       setLoading(false)
     }
@@ -72,8 +77,31 @@ export default function SignupPage() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSignup}>
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
+            <div className={`${isDuplicateEmail ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'} border px-4 py-3 rounded`}>
+              <p className={`${isDuplicateEmail ? 'text-blue-800' : 'text-red-700'} font-medium`}>
+                {error}
+              </p>
+              {isDuplicateEmail && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm text-blue-700">
+                    You can either:
+                  </p>
+                  <div className="flex flex-col space-y-2">
+                    <Link
+                      href="/login"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-500 underline"
+                    >
+                      Sign in to your existing account
+                    </Link>
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-500 underline"
+                    >
+                      Reset your password if you forgot it
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div className="space-y-4">

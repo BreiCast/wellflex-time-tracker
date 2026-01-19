@@ -24,8 +24,10 @@ When emails are sent, Supabase uses **both**:
    ```
    https://tracker.wellflex.co/auth/confirm
    https://tracker.wellflex.co/auth/accept-invite
+   https://tracker.wellflex.co/reset-password
    http://localhost:3000/auth/confirm
    http://localhost:3000/auth/accept-invite
+   http://localhost:3000/reset-password
    ```
 4. Click **"Save"**
 
