@@ -30,10 +30,8 @@ export default function TeamsPage() {
   const [newTeamColor, setNewTeamColor] = useState('#6366f1')
   const [creating, setCreating] = useState(false)
   
-  // Edit team state
-  const [editingTeam, setEditingTeam] = useState<string | null>(null)
-  const [editTeamName, setEditTeamName] = useState('')
-  const [editTeamColor, setEditTeamColor] = useState('#6366f1')
+  // Edit team state - store full team data to avoid confusion
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [updating, setUpdating] = useState(false)
   
   // Schedule management state
@@ -159,19 +157,18 @@ export default function TeamsPage() {
   }
 
   const handleStartEdit = (team: Team) => {
-    setEditingTeam(team.id)
-    setEditTeamName(team.name)
-    setEditTeamColor(team.color || '#6366f1')
+    // Store the full team object to ensure we're editing the correct team
+    setEditingTeam({ ...team })
     setError('')
   }
 
   const handleCancelEdit = () => {
     setEditingTeam(null)
-    setEditTeamName('')
-    setEditTeamColor('#6366f1')
   }
 
   const handleUpdateTeam = async (teamId: string) => {
+    if (!editingTeam) return
+    
     setError('')
     setSuccess('')
     setUpdating(true)
@@ -190,7 +187,7 @@ export default function TeamsPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ name: editTeamName, color: editTeamColor }),
+        body: JSON.stringify({ name: editingTeam.name, color: editingTeam.color || '#6366f1' }),
       })
 
       const result = await response.json()
@@ -200,8 +197,6 @@ export default function TeamsPage() {
       }
 
       setEditingTeam(null)
-      setEditTeamName('')
-      setEditTeamColor('#6366f1')
       setSuccess('Team updated successfully!')
       await loadTeams()
       
@@ -443,26 +438,26 @@ export default function TeamsPage() {
                     <React.Fragment key={team.id}>
                       <tr className="group hover:bg-slate-50/80 transition-all duration-200">
                         <td className="px-10 py-8 whitespace-nowrap">
-                          {editingTeam === team.id ? (
+                          {editingTeam && editingTeam.id === team.id ? (
                             <div className="space-y-4 max-w-xs animate-in fade-in zoom-in-95 duration-300">
                               <input
                                 type="text"
-                                value={editTeamName}
-                                onChange={(e) => setEditTeamName(e.target.value)}
+                                value={editingTeam.name}
+                                onChange={(e) => setEditingTeam({ ...editingTeam, name: e.target.value })}
                                 className="w-full px-4 py-2 border-2 border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700"
                                 autoFocus
                               />
                               <div className="flex items-center space-x-3">
                                 <input
                                   type="color"
-                                  value={editTeamColor}
-                                  onChange={(e) => setEditTeamColor(e.target.value)}
+                                  value={editingTeam.color || '#6366f1'}
+                                  onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
                                   className="w-12 h-10 rounded-lg border-2 border-slate-200 cursor-pointer"
                                 />
                                 <input
                                   type="text"
-                                  value={editTeamColor}
-                                  onChange={(e) => setEditTeamColor(e.target.value)}
+                                  value={editingTeam.color || '#6366f1'}
+                                  onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
                                   pattern="^#[0-9A-Fa-f]{6}$"
                                   className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-lg font-mono text-xs font-black text-slate-500"
                                 />
@@ -498,7 +493,7 @@ export default function TeamsPage() {
                           </div>
                         </td>
                         <td className="px-10 py-8 whitespace-nowrap text-right">
-                          {editingTeam === team.id ? (
+                          {editingTeam && editingTeam.id === team.id ? (
                             <div className="flex justify-end gap-3 animate-in fade-in slide-in-from-right-2 duration-300">
                               <button
                                 onClick={() => handleUpdateTeam(team.id)}

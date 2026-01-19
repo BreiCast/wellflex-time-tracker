@@ -253,17 +253,6 @@ function DashboardContent() {
       case 'teams':
         return (
           <div className="max-w-7xl mx-auto">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-blue-800">
-                💡 Teams management has moved to a dedicated page. 
-                <button
-                  onClick={() => router.push('/teams')}
-                  className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                >
-                  Go to Teams Management →
-                </button>
-              </p>
-            </div>
             {selectedTeam && (
               <div className="bg-white shadow rounded-lg p-6">
                 <TeamSelector
