@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .single()
 
-    if (!teamMember || !['ADMIN', 'MANAGER'].includes(teamMember.role)) {
+    const memberRole = (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' } | null)?.role
+    if (!teamMember || !memberRole || !['ADMIN', 'MANAGER'].includes(memberRole)) {
       return NextResponse.json(
         { error: 'Only admins and managers can send invites' },
         { status: 403 }
@@ -44,11 +45,13 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('email', email)
       .single()
+    
+    let existingUserData: { id: string } | null = existingUser as { id: string } | null
 
     // If not in public.users, check auth.users and create record
     if (!existingUser) {
       const { data: authUsers } = await supabase.auth.admin.listUsers()
-      const authUser = authUsers?.users.find(u => u.email === email)
+      const authUser = authUsers?.users.find((u: any) => u.email === email)
       
       if (authUser) {
         // User exists in auth but not in public.users - create the record
@@ -69,17 +72,17 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        existingUser = newUser || { id: authUser.id }
+        existingUserData = (newUser as { id: string } | null) || { id: authUser.id }
       }
     }
 
-    if (existingUser) {
+    if (existingUserData) {
       // User exists - check if already a member
       const { data: existingMember } = await supabase
         .from('team_members')
         .select('id')
         .eq('team_id', team_id)
-        .eq('user_id', existingUser.id)
+        .eq('user_id', existingUserData.id)
         .single()
 
       if (existingMember) {
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
         .from('team_members')
         .insert({
           team_id,
-          user_id: existingUser.id,
+          user_id: existingUserData.id,
           role,
         } as any)
         .select()

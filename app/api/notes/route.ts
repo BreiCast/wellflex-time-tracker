@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         time_session_id,
         content,
         created_by: user.id,
-      })
+      } as any)
       .select()
       .single()
 

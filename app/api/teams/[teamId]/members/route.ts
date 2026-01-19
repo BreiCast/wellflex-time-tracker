@@ -88,7 +88,7 @@ export async function POST(
       .eq('user_id', user.id)
       .single()
 
-    if (!teamMember || !['ADMIN', 'MANAGER'].includes(teamMember.role)) {
+    if (!teamMember || !['ADMIN', 'MANAGER'].includes((teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role)) {
       return NextResponse.json(
         { error: 'Only admins and managers can add members' },
         { status: 403 }
@@ -104,12 +104,12 @@ export async function POST(
         .from('users')
         .select('id')
         .eq('email', email)
-        .single()
+        .single() as { data: { id: string } | null }
 
       // If not in public.users, check auth.users and create record
       if (!existingUser) {
         const { data: authUsers } = await supabase.auth.admin.listUsers()
-        const authUser = authUsers?.users.find(u => u.email === email)
+        const authUser = authUsers?.users.find((u: any) => u.email === email) as any
         
         if (authUser) {
           // User exists in auth but not in public.users - create the record
@@ -130,7 +130,7 @@ export async function POST(
             )
           }
 
-          existingUser = newUser || { id: authUser.id }
+          existingUser = (newUser ? (newUser as { id: string }) : { id: authUser.id }) as { id: string } | null
         }
       }
 
@@ -258,7 +258,7 @@ export async function DELETE(
       .eq('user_id', user.id)
       .single()
 
-    if (!teamMember || teamMember.role !== 'ADMIN') {
+    if (!teamMember || (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Only admins can remove members' },
         { status: 403 }

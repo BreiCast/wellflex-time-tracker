@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         end_time: schedule.end_time,
         is_active: schedule.is_active ?? true,
         updated_at: new Date().toISOString(),
-      }, {
+      } as any, {
         onConflict: 'user_id,team_id,day_of_week',
       })
       .select()

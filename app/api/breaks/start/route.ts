@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       .gte('clock_in_at', todayStart.toISOString())
       .lt('clock_in_at', todayEnd.toISOString())
 
-    const sessionIds = todaySessions?.map(s => s.id) || []
+    const sessionIds = (todaySessions as Array<{ id: string }> | null)?.map(s => s.id) || []
 
     if (sessionIds.length > 0) {
       const { data: todayBreaks } = await supabase
@@ -82,9 +82,10 @@ export async function POST(request: NextRequest) {
         .lt('break_start_at', todayEnd.toISOString())
 
       if (todayBreaks) {
+        const breaks = todayBreaks as Array<{ break_type: 'BREAK' | 'LUNCH'; break_end_at: string | null }>
         if (break_type === 'LUNCH') {
           // Check if lunch already taken today (completed breaks only)
-          const lunchCount = todayBreaks.filter(b => b.break_type === 'LUNCH' && b.break_end_at !== null).length
+          const lunchCount = breaks.filter(b => b.break_type === 'LUNCH' && b.break_end_at !== null).length
           if (lunchCount >= 1) {
             return NextResponse.json(
               { error: 'You have already taken your lunch break today (limit: 1 lunch per day)' },
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
           }
         } else if (break_type === 'BREAK') {
           // Check if 2 breaks already taken today (completed breaks only)
-          const breakCount = todayBreaks.filter(b => b.break_type === 'BREAK' && b.break_end_at !== null).length
+          const breakCount = breaks.filter(b => b.break_type === 'BREAK' && b.break_end_at !== null).length
           if (breakCount >= 2) {
             return NextResponse.json(
               { error: 'You have already taken 2 breaks today (limit: 2 breaks per day)' },
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
         break_type,
         break_start_at: new Date().toISOString(),
         created_by: user.id,
-      })
+      } as any)
       .select()
       .single()
 

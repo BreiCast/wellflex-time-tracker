@@ -34,7 +34,7 @@ export async function PUT(
       .eq('user_id', user.id)
       .single()
 
-    if (!member || member.role !== 'ADMIN') {
+    if (!member || (member as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Only team admins can update team details' },
         { status: 403 }
@@ -67,8 +67,8 @@ export async function PUT(
     }
 
     // Update team
-    const { data: team, error } = await supabase
-      .from('teams')
+    const { data: team, error } = await (supabase
+      .from('teams') as any)
       .update(updateData)
       .eq('id', teamId)
       .select()
@@ -120,7 +120,7 @@ export async function DELETE(
       .eq('user_id', user.id)
       .single()
 
-    if (!member || member.role !== 'ADMIN') {
+    if (!member || (member as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Only team admins can delete teams' },
         { status: 403 }

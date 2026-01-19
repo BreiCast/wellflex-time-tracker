@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Create team
     const { data: team, error: teamError } = await supabase
       .from('teams')
-      .insert({ name, color: color || '#6366f1' })
+      .insert({ name, color: color || '#6366f1' } as any)
       .select()
       .single()
 

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         .eq('user_id', user.id)
         .single()
 
-      if (!teamMember || !['MANAGER', 'ADMIN'].includes(teamMember.role)) {
+      if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role)) {
         return NextResponse.json(
           { error: 'Only managers and admins can view other users timesheets' },
           { status: 403 }

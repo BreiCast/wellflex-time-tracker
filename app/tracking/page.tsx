@@ -506,7 +506,6 @@ export default function TrackingPage() {
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-10">
             <div className="flex items-center justify-between mb-6">
               <div>
-                {/* eslint-disable-next-line react/no-unescaped-entities */}
                 <h2 className="text-xl font-black text-slate-900">Today&apos;s Progress</h2>
                 <p className="text-sm font-bold text-slate-400 mt-1">Track your hours against scheduled time</p>
               </div>
@@ -543,7 +542,6 @@ export default function TrackingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              {/* eslint-disable-next-line react/no-unescaped-entities */}
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Today&apos;s Total</h3>
             </div>
             <p className="text-4xl font-black text-slate-900 font-mono tracking-tighter tabular-nums">
@@ -589,7 +587,6 @@ export default function TrackingPage() {
                 {activeSession ? 'Clocked In' : 'Clocked Out'}
               </p>
             </div>
-            {/* eslint-disable-next-line react/no-unescaped-entities */}
             <p className="mt-4 text-xs font-bold text-slate-400 italic">&quot;Focus on being productive instead of busy.&quot;</p>
           </div>
         </div>

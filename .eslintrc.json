@@ -1,7 +1,16 @@
 {
   "extends": "next/core-web-vitals",
   "rules": {
-    "react/no-unescaped-entities": "warn"
-  }
+    "react/no-unescaped-entities": "off",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["app/**/*.tsx", "components/**/*.tsx"],
+      "rules": {
+        "react/no-unescaped-entities": "off"
+      }
+    }
+  ]
 }
 

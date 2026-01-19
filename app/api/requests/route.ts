@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: request, error } = await supabase
+    const { data: newRequest, error } = await supabase
       .from('requests')
       .insert({
         user_id: user.id,
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         description,
         requested_data: requested_data || null,
         created_by: user.id,
-      })
+      } as any)
       .select()
       .single()
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ request })
+    return NextResponse.json({ request: newRequest })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -86,20 +86,20 @@ export async function PATCH(request: NextRequest) {
     const { request_id, status, review_notes } = reviewRequestSchema.parse(body)
 
     // Get request and verify user is manager/admin of team
-    const { data: request } = await supabase
+    const { data: requestData } = await supabase
       .from('requests')
       .select('id, team_id, status')
       .eq('id', request_id)
       .single()
 
-    if (!request) {
+    if (!requestData) {
       return NextResponse.json(
         { error: 'Request not found' },
         { status: 404 }
       )
     }
 
-    if (request.status !== 'PENDING') {
+    if ((requestData as { status: string }).status !== 'PENDING') {
       return NextResponse.json(
         { error: 'Request already reviewed' },
         { status: 400 }
@@ -110,19 +110,19 @@ export async function PATCH(request: NextRequest) {
     const { data: teamMember } = await supabase
       .from('team_members')
       .select('role')
-      .eq('team_id', request.team_id)
+      .eq('team_id', (requestData as { team_id: string }).team_id)
       .eq('user_id', user.id)
       .single()
 
-    if (!teamMember || !['MANAGER', 'ADMIN'].includes(teamMember.role)) {
+    if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
       return NextResponse.json(
         { error: 'Only managers and admins can review requests' },
         { status: 403 }
       )
     }
 
-    const { data: updatedRequest, error } = await supabase
-      .from('requests')
+    const { data: updatedRequest, error } = await (supabase
+      .from('requests') as any)
       .update({
         status,
         reviewed_at: new Date().toISOString(),
