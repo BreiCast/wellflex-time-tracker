@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         id: data.user.id,
         email: data.user.email!,
         full_name: data.user.user_metadata?.full_name || null,
-      })
+      } as any)
     }
 
     return NextResponse.json({ user: data.user, session: data.session })

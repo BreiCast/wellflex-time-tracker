@@ -20,14 +20,22 @@ export async function POST(request: NextRequest) {
     const { request_id, user_id, team_id, time_session_id, adjustment_type, minutes, effective_date, description } = createAdjustmentSchema.parse(body)
 
     // Verify user is manager/admin of team
-    const { data: teamMember } = await supabase
+    const { data: teamMember, error: teamMemberError } = await supabase
       .from('team_members')
       .select('role')
       .eq('team_id', team_id)
       .eq('user_id', user.id)
       .single()
 
-    if (!teamMember || !['MANAGER', 'ADMIN'].includes(teamMember.role)) {
+    if (teamMemberError || !teamMember) {
+      return NextResponse.json(
+        { error: 'Only managers and admins can create adjustments' },
+        { status: 403 }
+      )
+    }
+
+    const role = (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role
+    if (role !== 'MANAGER' && role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Only managers and admins can create adjustments' },
         { status: 403 }
@@ -57,7 +65,7 @@ export async function POST(request: NextRequest) {
         .eq('id', request_id)
         .single()
 
-      if (!request || request.status !== 'APPROVED') {
+      if (!request || (request as { status: string }).status !== 'APPROVED') {
         return NextResponse.json(
           { error: 'Request must be approved before creating adjustment' },
           { status: 400 }
@@ -77,7 +85,7 @@ export async function POST(request: NextRequest) {
         effective_date,
         description: description || null,
         created_by: user.id,
-      })
+      } as any)
       .select()
       .single()
 

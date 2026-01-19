@@ -33,33 +33,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const breakSeg = breakSegment as { id: string; break_end_at: string | null; time_session_id: string }
+
     // Verify session belongs to user
     const { data: session } = await supabase
       .from('time_sessions')
       .select('user_id')
-      .eq('id', breakSegment.time_session_id)
+      .eq('id', breakSeg.time_session_id)
       .single()
 
-    if (!session || session.user_id !== user.id) {
+    if (!session || !('user_id' in session) || (session as { user_id: string }).user_id !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }
       )
     }
 
-    if (breakSegment.break_end_at) {
+    if (breakSeg.break_end_at) {
       return NextResponse.json(
         { error: 'Break already ended' },
         { status: 400 }
       )
     }
 
-    const { data: updatedBreak, error } = await supabase
-      .from('break_segments')
+    const updateResult = await (supabase
+      .from('break_segments') as any)
       .update({ break_end_at: new Date().toISOString() })
       .eq('id', break_segment_id)
       .select()
       .single()
+    
+    const { data: updatedBreak, error } = updateResult
 
     if (error) {
       return NextResponse.json(

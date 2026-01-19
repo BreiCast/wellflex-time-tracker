@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (session.clock_out_at) {
+    const sessionData = session as { id: string; clock_out_at: string | null; clock_in_at: string }
+    if (sessionData.clock_out_at) {
       return NextResponse.json(
         { error: 'Cannot start break on completed session' },
         { status: 400 }

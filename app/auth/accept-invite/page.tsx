@@ -150,7 +150,7 @@ export default function AcceptInvitePage() {
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">Invite Accepted!</h2>
           <p className="mt-2 text-sm text-gray-600">
-            You've been added to the team. Redirecting to dashboard...
+            You&apos;ve been added to the team. Redirecting to dashboard...
           </p>
         </div>
       </div>

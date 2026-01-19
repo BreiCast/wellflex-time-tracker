@@ -28,7 +28,7 @@ export default function CheckEmailPage() {
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">Check your email</h2>
           <p className="mt-2 text-sm text-gray-600">
-            We've sent a confirmation link to
+            We&apos;ve sent a confirmation link to
           </p>
           <p className="mt-1 text-sm font-medium text-gray-900">{email}</p>
         </div>
@@ -61,7 +61,7 @@ export default function CheckEmailPage() {
 
         <div className="mt-6">
           <p className="text-center text-sm text-gray-600">
-            Didn't receive the email? Check your spam folder or{' '}
+            Didn&apos;t receive the email? Check your spam folder or{' '}
             <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
               try signing up again
             </Link>
