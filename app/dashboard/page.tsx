@@ -26,14 +26,21 @@ function DashboardContent() {
   const [activeTab, setActiveTab] = useState<string>('tracking')
   const [userRole, setUserRole] = useState<string>('MEMBER')
 
-  // Read tab from URL query params
+  // Read tab and team from URL query params
   useEffect(() => {
     const tab = searchParams.get('tab') || 'tracking'
+    const teamParam = searchParams.get('team')
+    
     if (tab === 'tracking') {
       router.push('/tracking')
       return
     }
     setActiveTab(tab)
+    
+    // Set selected team from URL parameter if provided
+    if (teamParam) {
+      setSelectedTeam(teamParam)
+    }
   }, [searchParams, router])
 
   const loadTeams = useCallback(async () => {
@@ -65,6 +72,7 @@ function DashboardContent() {
             name: tm.teams.name,
           }))
         setTeams(teamList)
+        // Only set default team if no team is selected
         if (teamList.length > 0 && !selectedTeam) {
           setSelectedTeam(teamList[0].id)
         }
@@ -89,7 +97,7 @@ function DashboardContent() {
       console.error('Error in loadTeams:', error)
     }
     return []
-  }, [selectedTeam])
+  }, [selectedTeam, searchParams])
 
   useEffect(() => {
     const loadData = async () => {
@@ -102,6 +110,12 @@ function DashboardContent() {
       }
 
       setUser(session.user)
+
+      // Check for team parameter in URL and set it before loading teams
+      const teamParam = searchParams.get('team')
+      if (teamParam) {
+        setSelectedTeam(teamParam)
+      }
 
       // Load user's teams
       await loadTeams()
