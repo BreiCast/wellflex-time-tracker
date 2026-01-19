@@ -1,9 +1,12 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function CheckEmailPage() {
+export const dynamic = 'force-dynamic'
+
+function CheckEmailContent() {
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
 
@@ -78,6 +81,21 @@ export default function CheckEmailPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CheckEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <CheckEmailContent />
+    </Suspense>
   )
 }
 

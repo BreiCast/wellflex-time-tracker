@@ -12,6 +12,8 @@ import DashboardNav from '@/components/DashboardNav'
 import TeamSelector from '@/components/TeamSelector'
 import TeamManagement from '@/components/TeamManagement'
 
+export const dynamic = 'force-dynamic'
+
 export default function DashboardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()

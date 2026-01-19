@@ -108,7 +108,7 @@ export function calculateTimesheet(
   }
 
   // Calculate work minutes (total - breaks + adjustments)
-  for (const entry of entries.values()) {
+  for (const entry of Array.from(entries.values())) {
     entry.workMinutes = entry.totalMinutes - entry.breakMinutes + entry.adjustedMinutes
   }
 
