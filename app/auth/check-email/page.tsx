@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -9,6 +9,40 @@ export const dynamic = 'force-dynamic'
 function CheckEmailContent() {
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
+  const [resending, setResending] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
+  const [resendError, setResendError] = useState('')
+
+  const handleResend = async () => {
+    if (!email) return
+
+    setResending(true)
+    setResendError('')
+    setResendSuccess(false)
+
+    try {
+      const response = await fetch('/api/auth/resend-confirmation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend email')
+      }
+
+      setResendSuccess(true)
+      setTimeout(() => setResendSuccess(false), 5000)
+    } catch (err: any) {
+      setResendError(err.message || 'Failed to resend confirmation email')
+    } finally {
+      setResending(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -62,7 +96,29 @@ function CheckEmailContent() {
           </div>
         </div>
 
-        <div className="mt-6">
+        {resendSuccess && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+            <p className="text-sm font-medium">Confirmation email sent!</p>
+            <p className="text-sm mt-1">Please check your inbox (and spam folder).</p>
+          </div>
+        )}
+
+        {resendError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <p className="text-sm">{resendError}</p>
+          </div>
+        )}
+
+        <div className="mt-6 space-y-4">
+          <div className="text-center">
+            <button
+              onClick={handleResend}
+              disabled={resending || !email}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {resending ? 'Sending...' : 'Resend Confirmation Email'}
+            </button>
+          </div>
           <p className="text-center text-sm text-gray-600">
             Didn&apos;t receive the email? Check your spam folder or{' '}
             <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
