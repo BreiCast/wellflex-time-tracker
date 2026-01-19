@@ -15,6 +15,17 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceSupabaseClient()
     
+    // Check if user already exists before attempting signup
+    const { data: existingUsers } = await supabase.auth.admin.listUsers()
+    const existingUser = existingUsers?.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+    
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'An account with this email address already exists. Please sign in instead.' },
+        { status: 400 }
+      )
+    }
+
     // Sign up the user
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -28,8 +39,21 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
+      // Handle specific Supabase errors
+      let errorMessage = error.message
+      
+      // Check for duplicate email errors (Supabase may return different error codes)
+      if (
+        error.message?.toLowerCase().includes('already registered') ||
+        error.message?.toLowerCase().includes('user already exists') ||
+        error.message?.toLowerCase().includes('email address is already') ||
+        error.code === 'user_already_exists'
+      ) {
+        errorMessage = 'An account with this email address already exists. Please sign in instead.'
+      }
+      
       return NextResponse.json(
-        { error: error.message },
+        { error: errorMessage },
         { status: 400 }
       )
     }

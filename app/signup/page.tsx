@@ -45,7 +45,19 @@ export default function SignupPage() {
       router.push('/dashboard')
       router.refresh()
     } catch (err: any) {
-      setError(err.message || 'Failed to sign up')
+      // Handle duplicate email errors
+      let errorMessage = err.message || 'Failed to sign up'
+      
+      if (
+        errorMessage.toLowerCase().includes('already registered') ||
+        errorMessage.toLowerCase().includes('user already exists') ||
+        errorMessage.toLowerCase().includes('email address is already') ||
+        errorMessage.toLowerCase().includes('already exists')
+      ) {
+        errorMessage = 'An account with this email address already exists. Please sign in instead.'
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
