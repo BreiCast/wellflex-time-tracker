@@ -2,9 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Font - Update font-family name and file paths to match your font */
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/fonts/custom-font-regular.woff2') format('woff2'),
+       url('/fonts/custom-font-regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/fonts/custom-font-medium.woff2') format('woff2'),
+       url('/fonts/custom-font-medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/fonts/custom-font-semibold.woff2') format('woff2'),
+       url('/fonts/custom-font-semibold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/fonts/custom-font-bold.woff2') format('woff2'),
+       url('/fonts/custom-font-bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   body {
     @apply antialiased text-slate-900 bg-[#f8fafc];
+    font-family: 'CustomFont', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 interface DashboardNavProps {
   activeTab: string
@@ -73,8 +74,14 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl leading-none">W</span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                <Image 
+                  src="/wellflex_logo.jpg" 
+                  alt="wetrack logo" 
+                  width={32} 
+                  height={32}
+                  className="object-contain"
+                />
               </div>
               <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400">
                 wetrack
