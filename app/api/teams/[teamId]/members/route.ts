@@ -390,7 +390,9 @@ export async function PATCH(
     let updateQuery = supabase
       .from('team_members')
       .update({ role } as any)
-      .eq('team_id', teamId)    if (membership_id) {
+      .eq('team_id', teamId)
+    
+    if (membership_id) {
       updateQuery = updateQuery.eq('id', membership_id)
     } else {
       updateQuery = updateQuery.eq('user_id', user_id!)

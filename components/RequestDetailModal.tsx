@@ -321,7 +321,7 @@ export default function RequestDetailModal({
                           </div>
                         </div>
                         <p className="text-sm font-bold text-slate-600 leading-relaxed whitespace-pre-wrap">
-                          {comment.comment_text}
+                          {comment.content}
                         </p>
                       </div>
                     ))
