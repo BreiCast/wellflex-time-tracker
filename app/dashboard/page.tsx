@@ -168,32 +168,32 @@ function DashboardContent() {
 
   const refreshData = async () => {
     await loadTeams()
-    // Reload active session
-    if (user) {
-      const supabase = createClient()
-      const { data: sessionData } = await supabase
-        .from('time_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .is('clock_out_at', null)
-        .order('clock_in_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (sessionData) {
-        setActiveSession(sessionData)
-        const { data: breakData } = await supabase
-          .from('break_segments')
-          .select('*')
-          .eq('time_session_id', (sessionData as any).id)
-          .is('break_end_at', null)
+      // Reload active session - only select essential columns
+      if (user) {
+        const supabase = createClient()
+        const { data: sessionData } = await supabase
+          .from('time_sessions')
+          .select('id, user_id, team_id, clock_in_at, clock_out_at') // Only essential columns
+          .eq('user_id', user.id)
+          .is('clock_out_at', null)
+          .order('clock_in_at', { ascending: false })
+          .limit(1)
           .maybeSingle()
-        setActiveBreak(breakData || null)
-      } else {
-        setActiveSession(null)
-        setActiveBreak(null)
+
+        if (sessionData) {
+          setActiveSession(sessionData)
+          const { data: breakData } = await supabase
+            .from('break_segments')
+            .select('id, time_session_id, break_type, break_start_at, break_end_at') // Only essential columns
+            .eq('time_session_id', (sessionData as any).id)
+            .is('break_end_at', null)
+            .maybeSingle()
+          setActiveBreak(breakData || null)
+        } else {
+          setActiveSession(null)
+          setActiveBreak(null)
+        }
       }
-    }
   }
 
   const renderTabContent = () => {

@@ -103,9 +103,10 @@ export default function TrackingPage() {
     if (!user) return
 
     const supabase = createClient()
+    // Only select essential columns - uses idx_time_sessions_user_active
     const { data: sessionData } = await supabase
       .from('time_sessions')
-      .select('*')
+      .select('id, user_id, team_id, clock_in_at, clock_out_at') // Only essential columns
       .eq('user_id', user.id)
       .is('clock_out_at', null)
       .order('clock_in_at', { ascending: false })
@@ -115,9 +116,10 @@ export default function TrackingPage() {
     if (sessionData) {
       setActiveSession(sessionData as TimeSession)
 
+      // Only select essential columns for break
       const { data: breakData } = await supabase
         .from('break_segments')
-        .select('*')
+        .select('id, time_session_id, break_type, break_start_at, break_end_at') // Only essential columns
         .eq('time_session_id', sessionData.id)
         .is('break_end_at', null)
         .maybeSingle()
@@ -167,12 +169,14 @@ export default function TrackingPage() {
       const todayEnd = new Date(todayStart)
       todayEnd.setDate(todayEnd.getDate() + 1)
 
+      // Only select essential columns for today's stats
       const { data: todaySessions } = await supabase
         .from('time_sessions')
-        .select('id, team_id, clock_in_at, clock_out_at')
+        .select('id, team_id, clock_in_at, clock_out_at') // Already optimized
         .eq('user_id', user.id)
         .gte('clock_in_at', todayStart.toISOString())
         .lt('clock_in_at', todayEnd.toISOString())
+        .order('clock_in_at', { ascending: false }) // Use indexed ordering
 
       const workedByTeam: Record<string, number> = {}
       
@@ -206,10 +210,10 @@ export default function TrackingPage() {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
-    // Get today's sessions
+    // Get today's sessions - only select essential columns
     const { data: sessions } = await supabase
       .from('time_sessions')
-      .select('*, break_segments(*)')
+      .select('id, clock_in_at, clock_out_at, break_segments(id, break_start_at, break_end_at)') // Only essential columns
       .eq('user_id', user.id)
       .gte('clock_in_at', today.toISOString())
       .lt('clock_in_at', tomorrow.toISOString())

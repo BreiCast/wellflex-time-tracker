@@ -64,6 +64,16 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(start_date)
     const endDate = new Date(end_date)
 
+    // Enforce maximum date range (90 days) to prevent excessive queries
+    const maxDays = 90
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysDiff > maxDays) {
+      return NextResponse.json(
+        { error: `Date range cannot exceed ${maxDays} days. Please select a smaller range.` },
+        { status: 400 }
+      )
+    }
+
     // If viewing all members, get all team member user IDs
     let targetUserIds: string[] = []
     if (viewAllMembers && team_id) {
@@ -79,19 +89,22 @@ export async function GET(request: NextRequest) {
       targetUserIds = [targetUserId]
     }
 
-    // Fetch time sessions for all target users
+    // Fetch time sessions for all target users - only select needed columns
     let sessionsQuery = supabase
       .from('time_sessions')
-      .select('*')
+      .select('id, user_id, team_id, clock_in_at, clock_out_at') // Only essential columns
       .in('user_id', targetUserIds)
       .gte('clock_in_at', startDate.toISOString())
       .lte('clock_in_at', endDate.toISOString())
+      .order('clock_in_at', { ascending: false }) // Use indexed ordering
 
     if (team_id) {
       sessionsQuery = sessionsQuery.eq('team_id', team_id)
     }
 
+    const startTime = Date.now()
     const { data: sessions, error: sessionsError } = await sessionsQuery
+    const sessionsQueryTime = Date.now() - startTime
 
     // Fetch user data separately
     let usersData: Record<string, any> = {}
@@ -116,14 +129,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch break segments
+    // Fetch break segments - only if we have sessions
     const sessionIds = sessions?.map(s => s.id) || []
-    let breaksQuery = supabase
-      .from('break_segments')
-      .select('*')
-      .in('time_session_id', sessionIds)
-
-    const { data: breaks, error: breaksError } = await breaksQuery
+    let breaks: any[] = []
+    if (sessionIds.length > 0) {
+      const breaksStartTime = Date.now()
+      const { data: breaksData, error: breaksError } = await supabase
+        .from('break_segments')
+        .select('id, time_session_id, break_type, break_start_at, break_end_at') // Only essential columns
+        .in('time_session_id', sessionIds)
+      
+      if (breaksError) {
+        return NextResponse.json(
+          { error: breaksError.message },
+          { status: 400 }
+        )
+      }
+      breaks = breaksData || []
+      const breaksQueryTime = Date.now() - breaksStartTime
+      console.log(`[PERF] Timesheet breaks query: ${breaksQueryTime}ms, rows: ${breaks.length}`)
+    } else {
+      breaks = []
+    }
 
     if (breaksError) {
       return NextResponse.json(
@@ -132,10 +159,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch adjustments for all target users
+    // Fetch adjustments for all target users - only select needed columns
+    const adjustmentsStartTime = Date.now()
     let adjustmentsQuery = supabase
       .from('adjustments')
-      .select('*')
+      .select('id, user_id, team_id, adjustment_type, minutes, effective_date') // Only essential columns
       .in('user_id', targetUserIds)
       .gte('effective_date', start_date)
       .lte('effective_date', end_date)
@@ -145,6 +173,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: adjustments, error: adjustmentsError } = await adjustmentsQuery
+    const adjustmentsQueryTime = Date.now() - adjustmentsStartTime
 
     if (adjustmentsError) {
       return NextResponse.json(
@@ -152,6 +181,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Log performance metrics
+    console.log(`[PERF] Timesheet query: sessions=${sessionsQueryTime}ms/${sessions?.length || 0}rows, adjustments=${adjustmentsQueryTime}ms/${adjustments?.length || 0}rows, range=${daysDiff}days`)
 
     // Calculate timesheet - if viewing all members, group by user
     if (viewAllMembers) {

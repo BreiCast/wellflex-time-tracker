@@ -50,12 +50,18 @@ export async function POST(request: NextRequest) {
     const now = new Date()
     const thresholdTime = new Date(now.getTime() - thresholdMs)
 
-    // Find all RUNNING sessions older than threshold
+    const startTime = Date.now()
+    // Find all RUNNING sessions older than threshold - uses partial index
     const { data: longRunningSessions } = await supabase
       .from('time_sessions')
       .select('id, user_id, team_id, clock_in_at')
-      .is('clock_out_at', null)
+      .is('clock_out_at', null) // Uses idx_time_sessions_running partial index
       .lt('clock_in_at', thresholdTime.toISOString())
+      .order('clock_in_at', { ascending: true }) // Process oldest first
+      .limit(100) // Limit batch size to prevent overload
+
+    const queryTime = Date.now() - startTime
+    console.log(`[PERF] Missed-punch scan: ${queryTime}ms, found ${longRunningSessions?.length || 0} sessions`)
 
     if (!longRunningSessions || longRunningSessions.length === 0) {
       return NextResponse.json({
@@ -65,19 +71,22 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Batch check for existing flags to reduce queries
+    const sessionIds = longRunningSessions.map(s => s.id)
+    const { data: existingFlags } = await supabase
+      .from('missed_punch_flags' as any)
+      .select('time_session_id')
+      .in('time_session_id', sessionIds)
+      .is('resolved_at', null)
+    
+    const flaggedSessionIds = new Set((existingFlags || []).map((f: any) => f.time_session_id))
+
     const flagged: string[] = []
     const skipped: string[] = []
 
     for (const session of longRunningSessions) {
-      // Check if flag already exists
-      const { data: existingFlag } = await supabase
-        .from('missed_punch_flags' as any)
-        .select('id')
-        .eq('time_session_id', session.id)
-        .is('resolved_at', null)
-        .maybeSingle()
-
-      if (existingFlag) {
+      // Check if flag already exists (from batch query)
+      if (flaggedSessionIds.has(session.id)) {
         skipped.push(`Session ${session.id} already flagged`)
         continue
       }
@@ -124,6 +133,9 @@ export async function POST(request: NextRequest) {
         flagged.push(`Session ${session.id} (User: ${session.user_id})`)
       }
     }
+
+    const totalTime = Date.now() - startTime
+    console.log(`[PERF] Missed-punch complete: ${totalTime}ms, flagged=${flagged.length}, skipped=${skipped.length}`)
 
     return NextResponse.json({
       success: true,

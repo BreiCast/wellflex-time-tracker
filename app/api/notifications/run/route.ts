@@ -47,14 +47,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get all users with notification preferences
+    const startTime = Date.now()
+    
+    // Only get users with active notification preferences (reduces scan size)
     const { data: users } = await supabase
       .from('users')
       .select(`
         id,
         email,
         full_name,
-        notification_preferences:notification_preferences (
+        notification_preferences:notification_preferences!inner (
           clock_in_reminders_enabled,
           clock_out_reminders_enabled,
           break_return_reminders_enabled,
@@ -65,9 +67,12 @@ export async function POST(request: NextRequest) {
         )
       `) as any
 
-    if (!users) {
+    if (!users || users.length === 0) {
+      console.log(`[PERF] Notifications scan: ${Date.now() - startTime}ms, no users with preferences`)
       return NextResponse.json({ processed: 0, sent: 0 })
     }
+
+    console.log(`[PERF] Notifications scan: ${Date.now() - startTime}ms, found ${users.length} users with preferences`)
 
     const now = new Date()
     const processed: string[] = []
