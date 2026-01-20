@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
     const adjustmentsStartTime = Date.now()
     let adjustmentsQuery = supabase
       .from('adjustments')
-      .select('id, user_id, team_id, adjustment_type, minutes, effective_date') // Only essential columns
+      .select('id, user_id, team_id, adjustment_type, minutes, effective_date, created_at, created_by, description, request_id, time_session_id') // Essential columns for calculateTimesheet
       .in('user_id', targetUserIds)
       .gte('effective_date', start_date)
       .lte('effective_date', end_date)
