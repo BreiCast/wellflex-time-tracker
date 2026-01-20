@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { createAdjustmentSchema } from '@/lib/validations/schemas'
 import { z } from 'zod'
 
@@ -19,27 +20,31 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { request_id, user_id, team_id, time_session_id, adjustment_type, minutes, effective_date, description } = createAdjustmentSchema.parse(body)
 
-    // Verify user is manager/admin of team
-    const { data: teamMember, error: teamMemberError } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', team_id)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (teamMemberError || !teamMember) {
-      return NextResponse.json(
-        { error: 'Only managers and admins can create adjustments' },
-        { status: 403 }
-      )
-    }
+    if (!isSuperAdminUser) {
+      // Verify user is manager/admin of team
+      const { data: teamMember, error: teamMemberError } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', team_id)
+        .eq('user_id', user.id)
+        .single()
 
-    const role = (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role
-    if (role !== 'MANAGER' && role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Only managers and admins can create adjustments' },
-        { status: 403 }
-      )
+      if (teamMemberError || !teamMember) {
+        return NextResponse.json(
+          { error: 'Only managers and admins can create adjustments' },
+          { status: 403 }
+        )
+      }
+
+      const role = (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role
+      if (role !== 'MANAGER' && role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'Only managers and admins can create adjustments' },
+          { status: 403 }
+        )
+      }
     }
 
     // Verify target user is member of team
@@ -110,4 +115,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

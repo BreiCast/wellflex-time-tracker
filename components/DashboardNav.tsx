@@ -112,7 +112,7 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
               <span className="text-sm font-semibold text-gray-700">{userEmail}</span>
             </div>
             
-            {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+            {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN') && (
               <button
                 onClick={() => router.push('/admin')}
                 className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
@@ -155,4 +155,3 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
     </nav>
   )
 }
-

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 const createTeamSchema = z.object({
@@ -156,6 +157,29 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServiceSupabaseClient()
 
+    const isSuperAdminUser = isSuperAdmin(user)
+
+    if (isSuperAdminUser) {
+      const { data: teams, error } = await supabase
+        .from('teams')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        )
+      }
+
+      const superTeams = teams?.map((team: any) => ({
+        ...team,
+        role: 'SUPERADMIN',
+      })) || []
+
+      return NextResponse.json({ teams: superTeams, is_superadmin: true })
+    }
+
     // Get user's teams
     const { data: teamMembers, error } = await supabase
       .from('team_members')
@@ -174,7 +198,7 @@ export async function GET(request: NextRequest) {
       role: tm.role,
     })) || []
 
-    return NextResponse.json({ teams })
+    return NextResponse.json({ teams, is_superadmin: false })
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -182,4 +206,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

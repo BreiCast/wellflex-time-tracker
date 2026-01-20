@@ -20,7 +20,7 @@ interface Schedule {
 interface ScheduleManagerProps {
   teamId: string
   userId?: string // Optional: if provided, manage this user's schedule (admin only)
-  userRole?: 'MEMBER' | 'MANAGER' | 'ADMIN' // User's role to determine permissions
+  userRole?: 'MEMBER' | 'MANAGER' | 'ADMIN' | 'SUPERADMIN' // User's role to determine permissions
   onScheduleUpdated?: () => void
 }
 
@@ -47,12 +47,15 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
         setCurrentUserId(session.user.id)
         
         // If admin and no userId provided, load team members
-        if ((userRole === 'ADMIN' || userRole === 'MANAGER') && !userId) {
-          const { data: members } = await supabase
-            .from('team_members')
-            .select('user_id, users(id, email, full_name)')
-            .eq('team_id', teamId)
-          
+        if ((userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN') && !userId) {
+          const response = await fetch(`/api/teams/${teamId}/members`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          })
+          const result = await response.json()
+          const members = response.ok ? result.members || [] : []
+
           if (members) {
             const memberList = members.map((m: any) => ({
               id: m.user_id,
@@ -84,7 +87,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
     if (!session) return
 
     // Use admin API if managing another user's schedule
-    const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER')
+    const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN')
     
     if (isManagingOtherUser) {
       // Use admin endpoint to get another user's schedules
@@ -128,7 +131,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
       
       if (!session) throw new Error('Not authenticated')
 
-      const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER')
+      const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN')
       
       // Use admin endpoint if managing another user's schedule
       const endpoint = isManagingOtherUser ? '/api/admin/schedules' : '/api/schedules'
@@ -173,7 +176,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
       
       if (!session) throw new Error('Not authenticated')
 
-      const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER')
+      const isManagingOtherUser = targetUserId !== session.user.id && (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN')
       const endpoint = isManagingOtherUser ? `/api/admin/schedules?id=${scheduleId}` : `/api/schedules?id=${scheduleId}`
 
       const response = await fetch(endpoint, {
@@ -210,7 +213,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
     )
   }
 
-  const isAdminMode = (userRole === 'ADMIN' || userRole === 'MANAGER') && !userId && teamMembers.length > 0
+  const isAdminMode = (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN') && !userId && teamMembers.length > 0
   const isManagingOtherUser = targetUserId && currentUserId && targetUserId !== currentUserId
 
   return (
@@ -335,4 +338,3 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
     </div>
   )
 }
-

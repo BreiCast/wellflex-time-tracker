@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { getTimesheetSchema } from '@/lib/validations/schemas'
 import { calculateTimesheet } from '@/lib/utils/timesheet'
 import { z } from 'zod'
@@ -40,19 +41,23 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Verify user is manager/admin of team
-      const { data: teamMember } = await supabase
-        .from('team_members')
-        .select('role')
-        .eq('team_id', team_id)
-        .eq('user_id', user.id)
-        .single()
+      const isSuperAdminUser = isSuperAdmin(user)
 
-      if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role)) {
-        return NextResponse.json(
-          { error: 'Only managers and admins can view other users timesheets' },
-          { status: 403 }
-        )
+      if (!isSuperAdminUser) {
+        // Verify user is manager/admin of team
+        const { data: teamMember } = await supabase
+          .from('team_members')
+          .select('role')
+          .eq('team_id', team_id)
+          .eq('user_id', user.id)
+          .single()
+
+        if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role)) {
+          return NextResponse.json(
+            { error: 'Only managers and admins can view other users timesheets' },
+            { status: 403 }
+          )
+        }
       }
     }
 
@@ -218,4 +223,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

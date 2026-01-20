@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 const scheduleSchema = z.object({
@@ -34,19 +35,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify admin is manager/admin of the team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', admin.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(admin)
 
-    if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
-      return NextResponse.json(
-        { error: 'Only managers and admins can view team member schedules' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify admin is manager/admin of the team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', admin.id)
+        .single()
+
+      if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
+        return NextResponse.json(
+          { error: 'Only managers and admins can view team member schedules' },
+          { status: 403 }
+        )
+      }
     }
 
     // Verify target user is member of the team
@@ -103,19 +108,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const schedule = scheduleSchema.parse(body)
 
-    // Verify admin is manager/admin of the team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', schedule.team_id)
-      .eq('user_id', admin.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(admin)
 
-    if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
-      return NextResponse.json(
-        { error: 'Only managers and admins can manage team member schedules' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify admin is manager/admin of the team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', schedule.team_id)
+        .eq('user_id', admin.id)
+        .single()
+
+      if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
+        return NextResponse.json(
+          { error: 'Only managers and admins can manage team member schedules' },
+          { status: 403 }
+        )
+      }
     }
 
     // Verify target user is member of the team
@@ -207,19 +216,23 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Verify admin is manager/admin of the team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', (schedule as { team_id: string }).team_id)
-      .eq('user_id', admin.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(admin)
 
-    if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
-      return NextResponse.json(
-        { error: 'Only managers and admins can delete team member schedules' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify admin is manager/admin of the team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', (schedule as { team_id: string }).team_id)
+        .eq('user_id', admin.id)
+        .single()
+
+      if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
+        return NextResponse.json(
+          { error: 'Only managers and admins can delete team member schedules' },
+          { status: 403 }
+        )
+      }
     }
 
     const { error } = await supabase
@@ -242,4 +255,3 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
-

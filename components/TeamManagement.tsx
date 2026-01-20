@@ -223,7 +223,7 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
     return <div className="text-gray-600">Loading team members...</div>
   }
 
-  const canManage = ['ADMIN', 'MANAGER'].includes(userRole)
+  const canManage = ['ADMIN', 'MANAGER', 'SUPERADMIN'].includes(userRole)
 
   return (
     <div className="space-y-8">
@@ -429,4 +429,3 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
     </div>
   )
 }
-
