@@ -99,14 +99,14 @@ export default function SignupPage() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">WELLFLEX</h1>
-          <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Time Tracker</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">wetrack</h1>
+          <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Time Tracking Made Simple</p>
         </div>
 
         <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] rounded-[3rem] p-10 border border-slate-100">
           <div className="mb-8">
             <h2 className="text-2xl font-black text-slate-900">Create Account</h2>
-            <p className="text-slate-400 font-bold text-sm mt-1">Start tracking your time with Wellflex.</p>
+            <p className="text-slate-400 font-bold text-sm mt-1">Start tracking your time with wetrack.</p>
           </div>
 
           <form className="space-y-6" onSubmit={handleSignup}>
@@ -218,7 +218,7 @@ export default function SignupPage() {
         </div>
         
         <p className="mt-10 text-center text-xs font-bold text-slate-300 uppercase tracking-[0.2em]">
-          &copy; 2026 Wellflex Inc. All rights reserved.
+          &copy; 2026 wetrack. All rights reserved.
         </p>
       </div>
     </div>

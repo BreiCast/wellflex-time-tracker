@@ -11,7 +11,7 @@ const getEmailTransporter = () => {
   const smtpPort = process.env.SMTP_PORT
   const smtpUser = process.env.SMTP_USER
   const smtpPassword = process.env.SMTP_PASSWORD
-  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>'
+  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || 'wetrack <noreply@wellflex.co>'
 
   console.log('[EMAIL] Checking SMTP configuration:', {
     hasHost: !!smtpHost,
@@ -165,7 +165,7 @@ export async function sendRequestNotificationEmail(
         </div>
         
         <div style="text-align: center; margin-top: 20px; color: #6c757d; font-size: 12px;">
-          <p>This is an automated notification from Time Tracker - Wellflex</p>
+          <p>This is an automated notification from wetrack</p>
         </div>
       </body>
     </html>
@@ -189,7 +189,7 @@ Please review this request in the admin panel.
   `.trim()
 
   try {
-    const fromEmail = process.env.SMTP_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>'
+    const fromEmail = process.env.SMTP_FROM_EMAIL || 'wetrack <noreply@wellflex.co>'
     console.log('[EMAIL] Attempting to send notification emails', {
       from: fromEmail,
       to: ADMIN_EMAILS,
@@ -353,7 +353,7 @@ export async function sendRequestConfirmationEmail(
         </div>
         
         <div style="text-align: center; margin-top: 20px; color: #6c757d; font-size: 12px;">
-          <p>This is an automated confirmation from Time Tracker - Wellflex</p>
+          <p>This is an automated confirmation from wetrack</p>
         </div>
       </body>
     </html>
@@ -381,7 +381,7 @@ If you have any questions, please contact your team administrator.
   `.trim()
 
   try {
-    const fromEmail = process.env.SMTP_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>'
+    const fromEmail = process.env.SMTP_FROM_EMAIL || 'wetrack <noreply@wellflex.co>'
     console.log('[EMAIL] Attempting to send confirmation email', {
       from: fromEmail,
       to: userEmail

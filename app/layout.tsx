@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Time Tracker - Wellflex',
-  description: 'Calamari-style time tracking application',
+  title: 'wetrack',
+  description: 'Simple and powerful time tracking',
   icons: {
     icon: '/wellflex_logo.jpg',
     shortcut: '/wellflex_logo.jpg',

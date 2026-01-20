@@ -1,4 +1,4 @@
-# Time Tracker - Wellflex
+# wetrack
 
 A Calamari-style time tracking web application with immutable raw logs and approval-based corrections.
 

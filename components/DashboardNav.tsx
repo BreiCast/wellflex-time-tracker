@@ -77,7 +77,7 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
                 <span className="text-white font-bold text-xl leading-none">W</span>
               </div>
               <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400">
-                Wellflex
+                wetrack
               </span>
             </Link>
             

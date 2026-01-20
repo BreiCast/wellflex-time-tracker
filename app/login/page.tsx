@@ -68,8 +68,8 @@ export default function LoginPage() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">WELLFLEX</h1>
-          <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Time Tracker</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">wetrack</h1>
+          <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Time Tracking Made Simple</p>
         </div>
 
         <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] rounded-[3rem] p-10 border border-slate-100">
@@ -152,7 +152,7 @@ export default function LoginPage() {
         </div>
         
         <p className="mt-10 text-center text-xs font-bold text-slate-300 uppercase tracking-[0.2em]">
-          &copy; 2026 Wellflex Inc. All rights reserved.
+          &copy; 2026 wetrack. All rights reserved.
         </p>
       </div>
     </div>

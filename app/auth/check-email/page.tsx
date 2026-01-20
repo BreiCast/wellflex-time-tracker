@@ -54,7 +54,7 @@ function CheckEmailContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">WELLFLEX</h1>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">wetrack</h1>
           <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Verify Email</p>
         </div>
 
@@ -119,7 +119,7 @@ function CheckEmailContent() {
         </div>
         
         <p className="mt-10 text-center text-xs font-bold text-slate-300 uppercase tracking-[0.2em]">
-          &copy; 2026 Wellflex Inc. All rights reserved.
+          &copy; 2026 wetrack. All rights reserved.
         </p>
       </div>
     </div>
