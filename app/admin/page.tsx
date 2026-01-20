@@ -28,46 +28,19 @@ export default function AdminPage() {
 
       setUser(session.user)
 
-      // Check if user is ADMIN in any team
-      const { data: adminTeams } = await supabase
+      const { data: teamMembers } = await supabase
         .from('team_members')
-        .select('team_id')
+        .select('team_id, role, teams(id, name)')
         .eq('user_id', session.user.id)
-        .eq('role', 'ADMIN')
-        .limit(1)
+        .in('role', ['MANAGER', 'ADMIN'])
 
-      let teamList: any[] = []
-
-      if (adminTeams && adminTeams.length > 0) {
-        // User is ADMIN - load all teams
-        const { data: allTeams } = await supabase
-          .from('teams')
-          .select('id, name')
-          .order('name', { ascending: true })
-
-        if (allTeams) {
-          teamList = allTeams.map((team: any) => ({
-            id: team.id,
-            name: team.name,
-            role: 'ADMIN', // Show as ADMIN since they have admin privileges
-          }))
-        }
-      } else {
-        // User is only MANAGER - load only their teams
-        const { data: teamMembers } = await supabase
-          .from('team_members')
-          .select('team_id, role, teams(id, name)')
-          .eq('user_id', session.user.id)
-          .in('role', ['MANAGER', 'ADMIN'])
-
-        if (teamMembers) {
-          teamList = teamMembers.map((tm: any) => ({
+      const teamList: any[] = teamMembers
+        ? teamMembers.map((tm: any) => ({
             id: tm.team_id,
             name: tm.teams.name,
             role: tm.role,
           }))
-        }
-      }
+        : []
 
       if (teamList.length > 0) {
         setTeams(teamList)
@@ -299,4 +272,3 @@ export default function AdminPage() {
     </div>
   )
 }
-
