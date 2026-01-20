@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const thresholdHours = orgSettings.missed_punch_threshold_hours
+    const thresholdHours = (orgSettings as any).missed_punch_threshold_hours || 12
     const thresholdMs = thresholdHours * 60 * 60 * 1000
     const now = new Date()
     const thresholdTime = new Date(now.getTime() - thresholdMs)

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
@@ -113,17 +114,12 @@ function ResetPasswordContent() {
           {/* Logo/Header */}
           <div className="text-center mb-10">
             <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-              <img 
+              <Image 
                 src="/wellflex-logo.png" 
                 alt="Wellflex Logo" 
+                width={96}
+                height={96}
                 className="w-full h-full object-contain"
-                onError={(e) => {
-                  // Fallback to SVG if image not found
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                  const fallback = target.nextElementSibling as HTMLElement
-                  if (fallback) fallback.style.display = 'flex'
-                }}
               />
               <div className="w-20 h-20 bg-rose-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-rose-200 hidden">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -190,17 +186,12 @@ function ResetPasswordContent() {
         {/* Logo/Header */}
         <div className="text-center mb-10">
           <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-            <img 
+            <Image 
               src="/wellflex_logo.jpg" 
               alt="Wellflex Logo" 
+              width={96}
+              height={96}
               className="w-full h-full object-contain rounded-2xl"
-              onError={(e) => {
-                // Fallback to SVG if image not found
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-                const fallback = target.nextElementSibling as HTMLElement
-                if (fallback) fallback.style.display = 'flex'
-              }}
             />
             <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-200 hidden">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
