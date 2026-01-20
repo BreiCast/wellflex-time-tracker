@@ -71,30 +71,42 @@ CREATE INDEX IF NOT EXISTS idx_adjustments_user_team_date
 -- MISSED_PUNCH_FLAGS TABLE OPTIMIZATIONS
 -- ============================================
 
--- Composite index for unresolved flags (most common query)
--- Used by: user views, admin dashboard
-CREATE INDEX IF NOT EXISTS idx_missed_punch_flags_unresolved 
-  ON public.missed_punch_flags(user_id, resolved_at) 
-  WHERE resolved_at IS NULL;
+-- Only create indexes if table exists (from migration 001)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'missed_punch_flags') THEN
+    -- Composite index for unresolved flags (most common query)
+    -- Used by: user views, admin dashboard
+    CREATE INDEX IF NOT EXISTS idx_missed_punch_flags_unresolved 
+      ON public.missed_punch_flags(user_id, resolved_at) 
+      WHERE resolved_at IS NULL;
 
--- Composite index for time_session lookups
--- Used by: cron job duplicate checks
-CREATE INDEX IF NOT EXISTS idx_missed_punch_flags_session 
-  ON public.missed_punch_flags(time_session_id, resolved_at);
+    -- Composite index for time_session lookups
+    -- Used by: cron job duplicate checks
+    CREATE INDEX IF NOT EXISTS idx_missed_punch_flags_session 
+      ON public.missed_punch_flags(time_session_id, resolved_at);
+  END IF;
+END $$;
 
 -- ============================================
 -- NOTIFICATION_EVENTS TABLE OPTIMIZATIONS
 -- ============================================
 
--- Composite index for user notification history
--- Used by: /api/notifications/me endpoint
-CREATE INDEX IF NOT EXISTS idx_notification_events_user_date 
-  ON public.notification_events(user_id, created_at DESC);
+-- Only create indexes if table exists (from migration 001)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notification_events') THEN
+    -- Composite index for user notification history
+    -- Used by: /api/notifications/me endpoint
+    CREATE INDEX IF NOT EXISTS idx_notification_events_user_date 
+      ON public.notification_events(user_id, created_at DESC);
 
--- Composite index for cooldown checks (cron optimization)
--- Used by: /api/notifications/run cron job
-CREATE INDEX IF NOT EXISTS idx_notification_events_cooldown 
-  ON public.notification_events(user_id, notification_type, created_at DESC);
+    -- Composite index for cooldown checks (cron optimization)
+    -- Used by: /api/notifications/run cron job
+    CREATE INDEX IF NOT EXISTS idx_notification_events_cooldown 
+      ON public.notification_events(user_id, notification_type, created_at DESC);
+  END IF;
+END $$;
 
 -- ============================================
 -- SCHEDULES TABLE OPTIMIZATIONS
@@ -119,22 +131,41 @@ CREATE INDEX IF NOT EXISTS idx_team_members_role
 -- REQUEST_COMMENTS TABLE OPTIMIZATIONS
 -- ============================================
 
--- Composite index for request comments
--- Used by: request detail views
-CREATE INDEX IF NOT EXISTS idx_request_comments_request_date 
-  ON public.request_comments(request_id, created_at ASC);
+-- Only create index if table exists (from migration 002)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'request_comments') THEN
+    -- Composite index for request comments
+    -- Used by: request detail views
+    CREATE INDEX IF NOT EXISTS idx_request_comments_request_date 
+      ON public.request_comments(request_id, created_at ASC);
+  END IF;
+END $$;
 
 -- ============================================
 -- ANALYZE TABLES FOR QUERY PLANNER
 -- ============================================
 
--- Update statistics for query planner
+-- Update statistics for query planner (only for existing tables)
 ANALYZE public.time_sessions;
 ANALYZE public.break_segments;
 ANALYZE public.requests;
 ANALYZE public.adjustments;
-ANALYZE public.missed_punch_flags;
-ANALYZE public.notification_events;
 ANALYZE public.schedules;
 ANALYZE public.team_members;
-ANALYZE public.request_comments;
+
+-- Conditionally analyze optional tables
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'missed_punch_flags') THEN
+    ANALYZE public.missed_punch_flags;
+  END IF;
+  
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notification_events') THEN
+    ANALYZE public.notification_events;
+  END IF;
+  
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'request_comments') THEN
+    ANALYZE public.request_comments;
+  END IF;
+END $$;
