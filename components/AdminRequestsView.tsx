@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import RequestDetailModal from './RequestDetailModal'
 
 interface AdminRequestsViewProps {
   teamIds: string[] // Array of all team IDs the admin manages
@@ -11,6 +12,8 @@ interface AdminRequestsViewProps {
 export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequestsViewProps) {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const loadRequests = useCallback(async () => {
     if (!teamIds || teamIds.length === 0) {
@@ -94,12 +97,24 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
 
       if (response.ok) {
         loadRequests()
+        setIsModalOpen(false)
+        setSelectedRequestId(null)
       } else {
         alert(result.error || 'Failed to review request')
       }
     } catch (error) {
       alert('Failed to review request')
     }
+  }
+
+  const handleOpenRequest = (requestId: string) => {
+    setSelectedRequestId(requestId)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedRequestId(null)
   }
 
   if (loading) {
@@ -230,6 +245,16 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
 
             <div className="flex gap-3 mt-auto">
               <button
+                onClick={() => handleOpenRequest(request.id)}
+                className="flex items-center justify-center px-4 py-3 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl hover:bg-indigo-100 border border-indigo-200 transition-all transform active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                OPEN
+              </button>
+              <button
                 onClick={() => {
                   const notes = prompt('Review notes (optional):')
                   handleReview(request.id, 'APPROVED', notes || undefined)
@@ -258,6 +283,12 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
         )
       })}
       </div>
+      <RequestDetailModal
+        requestId={selectedRequestId}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onRequestUpdated={loadRequests}
+      />
     </div>
   )
 }
