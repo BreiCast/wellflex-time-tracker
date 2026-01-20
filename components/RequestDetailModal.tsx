@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface RequestDetailModalProps {
@@ -57,17 +57,7 @@ export default function RequestDetailModal({
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
 
-  useEffect(() => {
-    if (isOpen && requestId) {
-      loadRequestDetails()
-    } else {
-      setRequest(null)
-      setComments([])
-      setCommentText('')
-    }
-  }, [isOpen, requestId])
-
-  const loadRequestDetails = async () => {
+  const loadRequestDetails = useCallback(async () => {
     if (!requestId) return
 
     setLoading(true)
@@ -98,7 +88,17 @@ export default function RequestDetailModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [requestId])
+
+  useEffect(() => {
+    if (isOpen && requestId) {
+      loadRequestDetails()
+    } else {
+      setRequest(null)
+      setComments([])
+      setCommentText('')
+    }
+  }, [isOpen, requestId, loadRequestDetails])
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()

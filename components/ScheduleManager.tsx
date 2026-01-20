@@ -76,7 +76,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
       }
     }
     init()
-  }, [teamId, userId, userRole])
+  }, [teamId, userId, userRole, targetUserId])
 
   const loadSchedules = useCallback(async () => {
     if (!targetUserId) return

@@ -158,7 +158,7 @@ function DashboardContent() {
     }
 
     loadData()
-  }, [router, loadTeams])
+  }, [router, loadTeams, searchParams])
 
   const handleLogout = async () => {
     const supabase = createClient()
