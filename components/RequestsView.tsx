@@ -15,9 +15,10 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   const [formData, setFormData] = useState({
     request_type: '',
     description: '',
-    requested_date: new Date().toISOString().split('T')[0],
-    requested_time_from: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    requested_time_to: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    requested_date_from: new Date().toISOString().split('T')[0],
+    requested_date_to: new Date().toISOString().split('T')[0],
+    requested_time_from: '',
+    requested_time_to: '',
   })
 
   const loadRequests = useCallback(async () => {
@@ -68,9 +69,10 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           request_type: formData.request_type,
           description: formData.description,
           requested_data: {
-            date: formData.requested_date,
-            time_from: formData.requested_time_from,
-            time_to: formData.requested_time_to,
+            date_from: formData.requested_date_from,
+            date_to: formData.requested_date_to,
+            time_from: formData.requested_time_from || null,
+            time_to: formData.requested_time_to || null,
           },
         }),
       })
@@ -82,9 +84,10 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
         setFormData({ 
           request_type: '', 
           description: '',
-          requested_date: new Date().toISOString().split('T')[0],
-          requested_time_from: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-          requested_time_to: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          requested_date_from: new Date().toISOString().split('T')[0],
+          requested_date_to: new Date().toISOString().split('T')[0],
+          requested_time_from: '',
+          requested_time_to: '',
         })
         loadRequests()
       } else {
@@ -180,15 +183,30 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   </optgroup>
                 </select>
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  Requested Date
+                  From Date
                 </label>
                 <input
                   type="date"
                   required
-                  value={formData.requested_date}
-                  onChange={(e) => setFormData({ ...formData, requested_date: e.target.value })}
+                  value={formData.requested_date_from}
+                  onChange={(e) => setFormData({ ...formData, requested_date_from: e.target.value })}
+                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.requested_date_to}
+                  onChange={(e) => setFormData({ ...formData, requested_date_to: e.target.value })}
+                  min={formData.requested_date_from}
                   className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
                 />
               </div>
@@ -196,26 +214,26 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  From Time
+                  From Time <span className="text-slate-300 font-normal">(Optional)</span>
                 </label>
                 <input
                   type="time"
-                  required
                   value={formData.requested_time_from}
                   onChange={(e) => setFormData({ ...formData, requested_time_from: e.target.value })}
                   className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                  placeholder="Leave empty for full day"
                 />
               </div>
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  To Time
+                  To Time <span className="text-slate-300 font-normal">(Optional)</span>
                 </label>
                 <input
                   type="time"
-                  required
                   value={formData.requested_time_to}
                   onChange={(e) => setFormData({ ...formData, requested_time_to: e.target.value })}
                   className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                  placeholder="Leave empty for full day"
                 />
               </div>
             </div>
@@ -278,14 +296,29 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   </div>
                   <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{request.request_type}</h4>
                   
-                  {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time_from || request.requested_data.time) && (
+                  {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date || request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
                     <div className="flex flex-wrap items-center gap-3 mt-2 mb-3">
-                      {request.requested_data.date && (
+                      {(request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date) && (
                         <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
-                          {new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {request.requested_data.date_from && request.requested_data.date_to
+                            ? (() => {
+                                const fromDate = new Date(request.requested_data.date_from + 'T00:00:00')
+                                const toDate = new Date(request.requested_data.date_to + 'T00:00:00')
+                                const fromStr = fromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: fromDate.getFullYear() !== toDate.getFullYear() ? 'numeric' : undefined })
+                                const toStr = toDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                return fromDate.getTime() === toDate.getTime() ? fromStr : `${fromStr} - ${toStr}`
+                              })()
+                            : request.requested_data.date
+                            ? new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : request.requested_data.date_from
+                            ? new Date(request.requested_data.date_from + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : request.requested_data.date_to
+                            ? new Date(request.requested_data.date_to + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : null
+                          }
                         </div>
                       )}
                       {(request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (

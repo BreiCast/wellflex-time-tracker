@@ -1,6 +1,13 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Initialize Resend only if API key is available
+const getResendClient = () => {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    return null
+  }
+  return new Resend(apiKey)
+}
 
 const ADMIN_EMAILS = [
   'breider@wellflex.co',
@@ -13,26 +20,51 @@ export async function sendRequestNotificationEmail(
   userEmail: string,
   teamName: string,
   description: string,
-  requestedDate?: string,
+  requestedDateFrom?: string,
+  requestedDateTo?: string,
   requestedTimeFrom?: string,
   requestedTimeTo?: string
 ) {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY not configured, skipping email notification')
+  console.log('[EMAIL] Starting notification email send', {
+    requestType,
+    userName,
+    userEmail,
+    teamName,
+    hasApiKey: !!process.env.RESEND_API_KEY
+  })
+  
+  const resend = getResendClient()
+  if (!resend) {
+    console.error('[EMAIL] RESEND_API_KEY not configured, skipping email notification')
     return
   }
 
   const timeInfo = requestedTimeFrom && requestedTimeTo
     ? `${requestedTimeFrom} - ${requestedTimeTo}`
-    : requestedTimeFrom || requestedTimeTo || 'N/A'
+    : requestedTimeFrom || requestedTimeTo || null
 
-  const dateInfo = requestedDate
-    ? new Date(requestedDate + 'T00:00:00').toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
-      })
-    : 'N/A'
+  let dateInfo = 'N/A'
+  if (requestedDateFrom && requestedDateTo) {
+    const fromDate = new Date(requestedDateFrom + 'T00:00:00')
+    const toDate = new Date(requestedDateTo + 'T00:00:00')
+    const fromStr = fromDate.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: fromDate.getFullYear() !== toDate.getFullYear() ? 'numeric' : undefined 
+    })
+    const toStr = toDate.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    })
+    dateInfo = fromDate.getTime() === toDate.getTime() ? fromStr : `${fromStr} - ${toStr}`
+  } else if (requestedDateFrom) {
+    dateInfo = new Date(requestedDateFrom + 'T00:00:00').toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    })
+  }
 
   const subject = `New ${requestType} Request from ${userName}`
   
@@ -66,13 +98,13 @@ export async function sendRequestNotificationEmail(
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Team:</td>
                 <td style="padding: 8px 0; color: #212529;">${teamName}</td>
               </tr>
-              ${requestedDate ? `
+              ${dateInfo !== 'N/A' ? `
               <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Requested Date:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Date Range:</td>
                 <td style="padding: 8px 0; color: #212529;">${dateInfo}</td>
               </tr>
               ` : ''}
-              ${(requestedTimeFrom || requestedTimeTo) ? `
+              ${timeInfo ? `
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Time Range:</td>
                 <td style="padding: 8px 0; color: #212529;">${timeInfo}</td>
@@ -106,8 +138,8 @@ A new request has been submitted and requires your review.
 Request Type: ${requestType}
 Submitted By: ${userName} (${userEmail})
 Team: ${teamName}
-${requestedDate ? `Requested Date: ${dateInfo}` : ''}
-${(requestedTimeFrom || requestedTimeTo) ? `Time Range: ${timeInfo}` : ''}
+${dateInfo !== 'N/A' ? `Date Range: ${dateInfo}` : ''}
+${timeInfo ? `Time Range: ${timeInfo}` : ''}
 
 Description:
 ${description}
@@ -127,10 +159,19 @@ Please review this request in the admin panel.
       })
     )
 
-    await Promise.all(emailPromises)
-    console.log('Request notification emails sent successfully')
-  } catch (error) {
-    console.error('Failed to send request notification email:', error)
+    const results = await Promise.all(emailPromises)
+    console.log('[EMAIL] ✅ Notification emails sent successfully', {
+      sent: results.length,
+      emails: ADMIN_EMAILS,
+      results: results.map((r: any) => ({ id: r?.id, to: r?.to }))
+    })
+  } catch (error: any) {
+    console.error('[EMAIL] ❌ Failed to send request notification email:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      response: error?.response,
+      code: error?.code
+    })
     // Don't throw - we don't want email failures to break request creation
   }
 }
@@ -141,26 +182,51 @@ export async function sendRequestConfirmationEmail(
   userEmail: string,
   teamName: string,
   description: string,
-  requestedDate?: string,
+  requestedDateFrom?: string,
+  requestedDateTo?: string,
   requestedTimeFrom?: string,
   requestedTimeTo?: string
 ) {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY not configured, skipping confirmation email')
+  console.log('[EMAIL] Starting confirmation email send', {
+    requestType,
+    userName,
+    userEmail,
+    teamName,
+    hasApiKey: !!process.env.RESEND_API_KEY
+  })
+  
+  const resend = getResendClient()
+  if (!resend) {
+    console.error('[EMAIL] RESEND_API_KEY not configured, skipping confirmation email')
     return
   }
 
   const timeInfo = requestedTimeFrom && requestedTimeTo
     ? `${requestedTimeFrom} - ${requestedTimeTo}`
-    : requestedTimeFrom || requestedTimeTo || 'N/A'
+    : requestedTimeFrom || requestedTimeTo || null
 
-  const dateInfo = requestedDate
-    ? new Date(requestedDate + 'T00:00:00').toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
-      })
-    : 'N/A'
+  let dateInfo = 'N/A'
+  if (requestedDateFrom && requestedDateTo) {
+    const fromDate = new Date(requestedDateFrom + 'T00:00:00')
+    const toDate = new Date(requestedDateTo + 'T00:00:00')
+    const fromStr = fromDate.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: fromDate.getFullYear() !== toDate.getFullYear() ? 'numeric' : undefined 
+    })
+    const toStr = toDate.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    })
+    dateInfo = fromDate.getTime() === toDate.getTime() ? fromStr : `${fromStr} - ${toStr}`
+  } else if (requestedDateFrom) {
+    dateInfo = new Date(requestedDateFrom + 'T00:00:00').toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    })
+  }
 
   const subject = `Your ${requestType} Request Has Been Submitted`
   
@@ -192,13 +258,13 @@ export async function sendRequestConfirmationEmail(
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Team:</td>
                 <td style="padding: 8px 0; color: #212529;">${teamName}</td>
               </tr>
-              ${requestedDate ? `
+              ${dateInfo !== 'N/A' ? `
               <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Requested Date:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Date Range:</td>
                 <td style="padding: 8px 0; color: #212529;">${dateInfo}</td>
               </tr>
               ` : ''}
-              ${(requestedTimeFrom || requestedTimeTo) ? `
+              ${timeInfo ? `
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Time Range:</td>
                 <td style="padding: 8px 0; color: #212529;">${timeInfo}</td>
@@ -242,8 +308,8 @@ Thank you for submitting your request. We've received it and it's now pending re
 
 Request Type: ${requestType}
 Team: ${teamName}
-${requestedDate ? `Requested Date: ${dateInfo}` : ''}
-${(requestedTimeFrom || requestedTimeTo) ? `Time Range: ${timeInfo}` : ''}
+${dateInfo !== 'N/A' ? `Date Range: ${dateInfo}` : ''}
+${timeInfo ? `Time Range: ${timeInfo}` : ''}
 
 Your Description:
 ${description}
@@ -255,16 +321,26 @@ If you have any questions, please contact your team administrator.
   `.trim()
 
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>',
       to: userEmail,
       subject,
       html: htmlContent,
       text: textContent,
     })
-    console.log('Request confirmation email sent successfully to requester')
-  } catch (error) {
-    console.error('Failed to send request confirmation email:', error)
+    console.log('[EMAIL] ✅ Confirmation email sent successfully to requester', {
+      email: userEmail,
+      resultId: result?.id,
+      result: result
+    })
+  } catch (error: any) {
+    console.error('[EMAIL] ❌ Failed to send request confirmation email:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      response: error?.response,
+      code: error?.code,
+      email: userEmail
+    })
     // Don't throw - we don't want email failures to break request creation
   }
 }

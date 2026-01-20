@@ -70,10 +70,27 @@ export async function POST(request: NextRequest) {
         .eq('id', team_id)
         .single()
     ]).then(async ([userResult, teamResult]) => {
+      if (userResult.error) {
+        console.error('Error fetching user data for email:', userResult.error)
+        return
+      }
+      if (teamResult.error) {
+        console.error('Error fetching team data for email:', teamResult.error)
+        return
+      }
+      
       if (userResult.data && teamResult.data) {
         const userData = userResult.data as { email: string; full_name: string | null }
         const teamData = teamResult.data as { name: string }
         const userName = userData.full_name || userData.email
+        
+        console.log('[EMAIL] 📧 Preparing to send emails for request:', {
+          requestType,
+          userName,
+          userEmail: userData.email,
+          teamName: teamData.name,
+          requestedData: requested_data
+        })
         
         // Send notification to admins
         await sendRequestNotificationEmail(
@@ -82,7 +99,8 @@ export async function POST(request: NextRequest) {
           userData.email,
           teamData.name,
           description,
-          requested_data?.date,
+          requested_data?.date_from || requested_data?.date,
+          requested_data?.date_to || requested_data?.date,
           requested_data?.time_from,
           requested_data?.time_to
         )
@@ -94,13 +112,24 @@ export async function POST(request: NextRequest) {
           userData.email,
           teamData.name,
           description,
-          requested_data?.date,
+          requested_data?.date_from || requested_data?.date,
+          requested_data?.date_to || requested_data?.date,
           requested_data?.time_from,
           requested_data?.time_to
         )
+      } else {
+        console.warn('Missing user or team data for email notification', {
+          hasUserData: !!userResult.data,
+          hasTeamData: !!teamResult.data
+        })
       }
     }).catch(err => {
-      console.error('Error sending emails:', err)
+      console.error('[EMAIL] ❌ Error in email sending process:', {
+        error: err?.message || err,
+        stack: err?.stack,
+        requestType,
+        teamId
+      })
       // Don't fail the request if email fails
     })
 

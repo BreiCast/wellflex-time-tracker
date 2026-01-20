@@ -184,14 +184,29 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
                 )}
               </div>
 
-              {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
+              {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date || request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
                 <div className="flex flex-wrap items-center gap-3 mb-4">
-                  {request.requested_data.date && (
+                  {(request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date) && (
                     <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      {new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {request.requested_data.date_from && request.requested_data.date_to
+                        ? (() => {
+                            const fromDate = new Date(request.requested_data.date_from + 'T00:00:00')
+                            const toDate = new Date(request.requested_data.date_to + 'T00:00:00')
+                            const fromStr = fromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: fromDate.getFullYear() !== toDate.getFullYear() ? 'numeric' : undefined })
+                            const toStr = toDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            return fromDate.getTime() === toDate.getTime() ? fromStr : `${fromStr} - ${toStr}`
+                          })()
+                        : request.requested_data.date
+                        ? new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : request.requested_data.date_from
+                        ? new Date(request.requested_data.date_from + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : request.requested_data.date_to
+                        ? new Date(request.requested_data.date_to + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : null
+                      }
                     </div>
                   )}
                   {(request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (

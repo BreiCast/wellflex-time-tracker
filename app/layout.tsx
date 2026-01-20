@@ -7,6 +7,11 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Time Tracker - Wellflex',
   description: 'Calamari-style time tracking application',
+  icons: {
+    icon: '/wellflex_logo.jpg',
+    shortcut: '/wellflex_logo.jpg',
+    apple: '/wellflex_logo.jpg',
+  },
 }
 
 export default function RootLayout({
