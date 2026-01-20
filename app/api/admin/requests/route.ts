@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       .from('requests')
       .select(`
         *,
-        users(email, full_name),
+        users!requests_user_id_fkey(email, full_name),
         teams(id, name, color)
       `)
       .in('team_id', teamIds)
