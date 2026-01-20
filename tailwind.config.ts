@@ -9,8 +9,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['CustomFont', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        custom: ['CustomFont', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        wetrack: ['Wellflex1', 'sans-serif'],
       },
     },
   },

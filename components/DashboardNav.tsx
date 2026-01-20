@@ -83,7 +83,7 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
                   className="object-contain"
                 />
               </div>
-              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400">
+              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400 font-wetrack">
                 wetrack
               </span>
             </Link>

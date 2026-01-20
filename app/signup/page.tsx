@@ -99,7 +99,7 @@ export default function SignupPage() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">wetrack</h1>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter font-wetrack">wetrack</h1>
           <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Time Tracking Made Simple</p>
         </div>
 
