@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     // Fetch time sessions for all target users - only select needed columns
     let sessionsQuery = supabase
       .from('time_sessions')
-      .select('id, user_id, team_id, clock_in_at, clock_out_at') // Only essential columns
+      .select('id, user_id, team_id, clock_in_at, clock_out_at, created_at, created_by') // Essential columns for calculateTimesheet
       .in('user_id', targetUserIds)
       .gte('clock_in_at', startDate.toISOString())
       .lte('clock_in_at', endDate.toISOString())
