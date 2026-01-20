@@ -61,6 +61,23 @@ export async function POST(
       }
     }
 
+    // Check if request_comments table exists (helpful error message)
+    const { error: tableCheckError } = await supabase
+      .from('request_comments' as any)
+      .select('id')
+      .limit(0)
+    
+    if (tableCheckError && tableCheckError.code === '42P01') {
+      return NextResponse.json(
+        { 
+          error: 'Comments feature not available', 
+          details: 'The request_comments table does not exist. Please run migration 002_add_request_comments.sql in Supabase.',
+          hint: 'Run the migration: supabase/migrations/002_add_request_comments.sql'
+        },
+        { status: 503 }
+      )
+    }
+
     // Insert comment
     const { data: newComment, error: commentError } = await supabase
       .from('request_comments' as any)
@@ -77,18 +94,21 @@ export async function POST(
       .single()
 
     if (commentError) {
-      console.error('Error creating comment:', {
+      console.error('[COMMENTS] Error creating comment:', {
         error: commentError,
         message: commentError.message,
         details: commentError.details,
         hint: commentError.hint,
         code: commentError.code,
+        requestId,
+        userId: user.id,
       })
       return NextResponse.json(
         { 
           error: 'Failed to add comment', 
           details: commentError.message || 'Unknown error',
-          hint: commentError.hint || 'Check if request_comments table exists and RLS policies are correct'
+          hint: commentError.hint || 'Check if request_comments table exists and RLS policies are correct',
+          code: commentError.code
         },
         { status: 400 }
       )

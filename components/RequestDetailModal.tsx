@@ -132,11 +132,20 @@ export default function RequestDetailModal({
           onRequestUpdated()
         }
       } else {
-        alert(result.error || 'Failed to add comment')
+        console.error('Failed to add comment:', {
+          status: response.status,
+          error: result.error,
+          details: result.details,
+          hint: result.hint
+        })
+        const errorMsg = result.details 
+          ? `${result.error}: ${result.details}${result.hint ? ` (${result.hint})` : ''}`
+          : result.error || 'Failed to add comment'
+        alert(errorMsg)
       }
     } catch (error) {
       console.error('Error adding comment:', error)
-      alert('Failed to add comment')
+      alert('Failed to add comment. Please check the console for details.')
     } finally {
       setSubmittingComment(false)
     }
