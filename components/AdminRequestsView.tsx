@@ -12,13 +12,10 @@ interface AdminRequestsViewProps {
 export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequestsViewProps) {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-<<<<<<< HEAD
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-=======
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null)
   const [reviewNotesByRequest, setReviewNotesByRequest] = useState<Record<string, string>>({})
->>>>>>> 271852f4a73900e0a165de5797aa9f7988c6a660
 
   const loadRequests = useCallback(async () => {
     if (!teamIds || teamIds.length === 0) {
@@ -107,12 +104,9 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
 
       if (response.ok) {
         loadRequests()
-<<<<<<< HEAD
         setIsModalOpen(false)
         setSelectedRequestId(null)
-=======
         setExpandedRequestId(null)
->>>>>>> 271852f4a73900e0a165de5797aa9f7988c6a660
       } else {
         alert(result.error || 'Failed to review request')
       }
