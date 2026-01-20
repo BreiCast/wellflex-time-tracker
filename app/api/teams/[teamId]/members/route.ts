@@ -346,9 +346,12 @@ export async function PATCH(
     const supabase = createServiceSupabaseClient()
     const { teamId } = params
     const body = await request.json()
-    const { user_id, role } = z.object({
-      user_id: z.string().uuid(),
+    const { user_id, membership_id, role } = z.object({
+      user_id: z.string().uuid().optional(),
+      membership_id: z.string().uuid().optional(),
       role: z.enum(['MEMBER', 'MANAGER', 'ADMIN']),
+    }).refine((data) => data.user_id || data.membership_id, {
+      message: 'user_id or membership_id is required',
     }).parse(body)
 
     // Verify requesting user is admin of team
@@ -367,11 +370,18 @@ export async function PATCH(
     }
 
     // Update role
-    const { data: updatedMember, error } = await supabase
+    let updateQuery = supabase
       .from('team_members')
       .update({ role } as any)
       .eq('team_id', teamId)
-      .eq('user_id', user_id)
+
+    if (membership_id) {
+      updateQuery = updateQuery.eq('id', membership_id)
+    } else {
+      updateQuery = updateQuery.eq('user_id', user_id!)
+    }
+
+    const { data: updatedMember, error } = await updateQuery
       .select('id, user_id, role, users(id, email, full_name)')
       .single()
 

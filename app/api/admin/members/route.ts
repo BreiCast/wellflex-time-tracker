@@ -14,60 +14,24 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServiceSupabaseClient()
     
-    // Check if user is ADMIN in any team
-    const { data: adminTeams, error: adminCheckError } = await supabase
+    const { data: teamMembers, error: teamError } = await supabase
       .from('team_members')
       .select('team_id')
       .eq('user_id', admin.id)
-      .eq('role', 'ADMIN')
-      .limit(1)
+      .in('role', ['MANAGER', 'ADMIN'])
 
-    if (adminCheckError) {
+    if (teamError) {
       return NextResponse.json(
-        { error: 'Failed to check admin status', details: adminCheckError.message },
+        { error: 'Failed to load teams', details: teamError.message },
         { status: 400 }
       )
     }
 
-    // If user is ADMIN in any team, they can see all teams
-    // Otherwise, only show teams where they are MANAGER or ADMIN
-    let teamIds: string[] = []
-
-    if (adminTeams && adminTeams.length > 0) {
-      // User is ADMIN - get all teams
-      const { data: allTeams, error: allTeamsError } = await supabase
-        .from('teams')
-        .select('id')
-
-      if (allTeamsError) {
-        return NextResponse.json(
-          { error: 'Failed to load teams', details: allTeamsError.message },
-          { status: 400 }
-        )
-      }
-
-      teamIds = allTeams?.map(t => t.id) || []
-    } else {
-      // User is only MANAGER - get only their teams
-      const { data: teamMembers, error: teamError } = await supabase
-        .from('team_members')
-        .select('team_id')
-        .eq('user_id', admin.id)
-        .in('role', ['MANAGER', 'ADMIN'])
-
-      if (teamError) {
-        return NextResponse.json(
-          { error: 'Failed to load teams', details: teamError.message },
-          { status: 400 }
-        )
-      }
-
-      if (!teamMembers || teamMembers.length === 0) {
-        return NextResponse.json({ members: [] })
-      }
-
-      teamIds = teamMembers.map(tm => tm.team_id)
+    if (!teamMembers || teamMembers.length === 0) {
+      return NextResponse.json({ members: [] })
     }
+
+    const teamIds = teamMembers.map(tm => tm.team_id)
 
     // Get all members from those teams with their user info and team info
     const { data: allMembers, error: membersError } = await supabase
@@ -129,4 +93,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-
