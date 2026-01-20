@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         teams(id, name, color)
       `)
       .in('team_id', teamIds)
-      .eq('status', 'PENDING')
+      .or('status.eq.PENDING,status.is.null')
       .order('created_at', { ascending: false })
 
     if (requestsError) {
