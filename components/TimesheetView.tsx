@@ -38,37 +38,42 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
 
   useEffect(() => {
     const init = async () => {
+      if (!teamId) return
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setCurrentUser(session.user)
         // Only set selectedUserId if not already set by props or state
         setSelectedUserId(prev => prev || initialUserId || session.user.id)
-        
-        // Load user role and members if MANAGER/ADMIN
-        const { data: memberData } = await supabase
-          .from('team_members')
-          .select('role')
-          .eq('team_id', teamId)
-          .eq('user_id', session.user.id)
-          .single()
-        
-        const role = memberData?.role || 'MEMBER'
+
+        const isSuperAdmin =
+          session.user.user_metadata?.superadmin === true ||
+          session.user.user_metadata?.super_admin === true ||
+          session.user.user_metadata?.role === 'SUPERADMIN' ||
+          session.user.app_metadata?.role === 'SUPERADMIN'
+
+        if (isSuperAdmin) {
+          setUserRole('SUPERADMIN')
+        }
+
+        const response = await fetch(`/api/teams/${teamId}/members`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        })
+        const result = await response.json()
+        const memberList = response.ok ? result.members || [] : []
+
+        const currentMember = memberList.find((member: any) => member.user_id === session.user.id)
+        const role = isSuperAdmin ? 'SUPERADMIN' : (currentMember?.role || 'MEMBER')
         setUserRole(role)
 
-        if (role === 'MANAGER' || role === 'ADMIN') {
-          const { data: teamMembers } = await supabase
-            .from('team_members')
-            .select('user_id, users(id, email, full_name)')
-            .eq('team_id', teamId)
-          
-          if (teamMembers) {
-            setMembers(teamMembers.map((m: any) => ({
-              id: m.user_id,
-              name: m.users?.full_name || m.users?.email,
-              email: m.users?.email
-            })))
-          }
+        if (role === 'MANAGER' || role === 'ADMIN' || role === 'SUPERADMIN') {
+          setMembers(memberList.map((m: any) => ({
+            id: m.user_id,
+            name: m.users?.full_name || m.users?.email,
+            email: m.users?.email
+          })))
         }
       }
     }
@@ -176,7 +181,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
 
         {/* Second Row: User Selector and View Toggle */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          {(userRole === 'MANAGER' || userRole === 'ADMIN') && members.length > 0 && (
+          {(userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'SUPERADMIN') && members.length > 0 && (
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}

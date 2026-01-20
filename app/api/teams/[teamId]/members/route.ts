@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 const addMemberSchema = z.object({
@@ -25,19 +26,23 @@ export async function GET(
     const supabase = createServiceSupabaseClient()
     const { teamId } = params
 
-    // Verify user is member of team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!teamMember) {
-      return NextResponse.json(
-        { error: 'You are not a member of this team' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify user is member of team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!teamMember) {
+        return NextResponse.json(
+          { error: 'You are not a member of this team' },
+          { status: 403 }
+        )
+      }
     }
 
     // Get all team members
@@ -80,19 +85,23 @@ export async function POST(
     const body = await request.json()
     const { user_id, email, role } = addMemberSchema.parse(body)
 
-    // Verify user is admin/manager of team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!teamMember || !['ADMIN', 'MANAGER'].includes((teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role)) {
-      return NextResponse.json(
-        { error: 'Only admins and managers can add members' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify user is admin/manager of team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!teamMember || !['ADMIN', 'MANAGER'].includes((teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role)) {
+        return NextResponse.json(
+          { error: 'Only admins and managers can add members' },
+          { status: 403 }
+        )
+      }
     }
 
     let targetUserId = user_id
@@ -264,19 +273,23 @@ export async function DELETE(
       )
     }
 
-    // Verify user is admin of team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!teamMember || (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Only admins can remove members' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify user is admin of team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!teamMember || (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'Only admins can remove members' },
+          { status: 403 }
+        )
+      }
     }
 
     // Don't allow removing yourself - check by membership_id or user_id
@@ -354,19 +367,23 @@ export async function PATCH(
       message: 'user_id or membership_id is required',
     }).parse(body)
 
-    // Verify requesting user is admin of team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!teamMember || (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Only admins can change member roles' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify requesting user is admin of team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!teamMember || (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'Only admins can change member roles' },
+          { status: 403 }
+        )
+      }
     }
 
     // Update role

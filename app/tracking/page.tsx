@@ -63,22 +63,30 @@ export default function TrackingPage() {
     if (!session) return []
 
     try {
-      const { data: teamMembers } = await supabase
-        .from('team_members')
-        .select('team_id, teams(id, name, color)')
-        .eq('user_id', session.user.id)
+      const response = await fetch('/api/teams', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
 
-      if (teamMembers && teamMembers.length > 0) {
-        const hasManagementRole = teamMembers.some((tm: any) => tm.role === 'ADMIN' || tm.role === 'MANAGER')
-        setUserRole(hasManagementRole ? 'ADMIN' : 'MEMBER')
+      const result = await response.json()
 
-        const teamList = teamMembers
-          .filter((tm: any) => tm.teams)
-          .map((tm: any) => ({
-            id: tm.team_id,
-            name: tm.teams.name,
-            color: tm.teams.color || '#6366f1',
-          }))
+      if (!response.ok) {
+        console.error('Error loading teams:', result.error)
+        return []
+      }
+
+      if (result.teams && result.teams.length > 0) {
+        const hasManagementRole = result.teams.some((tm: any) =>
+          tm.role === 'ADMIN' || tm.role === 'MANAGER' || tm.role === 'SUPERADMIN'
+        )
+        setUserRole(result.is_superadmin ? 'SUPERADMIN' : (hasManagementRole ? 'ADMIN' : 'MEMBER'))
+
+        const teamList = result.teams.map((team: any) => ({
+          id: team.id,
+          name: team.name,
+          color: team.color || '#6366f1',
+        }))
         setTeams(teamList)
         if (teamList.length > 0 && !selectedTeam) {
           setSelectedTeam(teamList[0].id)

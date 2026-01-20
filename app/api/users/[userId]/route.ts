@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 const updateUserNameSchema = z.object({
@@ -25,19 +26,23 @@ export async function PATCH(
     const body = await request.json()
     const { full_name } = updateUserNameSchema.parse(body)
 
-    // Verify admin is actually an admin of at least one team
-    const { data: adminTeams } = await supabase
-      .from('team_members')
-      .select('team_id')
-      .eq('user_id', admin.id)
-      .eq('role', 'ADMIN')
-      .limit(1)
+    const isSuperAdminUser = isSuperAdmin(admin)
 
-    if (!adminTeams || adminTeams.length === 0) {
-      return NextResponse.json(
-        { error: 'Only admins can update user names' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify admin is actually an admin of at least one team
+      const { data: adminTeams } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', admin.id)
+        .eq('role', 'ADMIN')
+        .limit(1)
+
+      if (!adminTeams || adminTeams.length === 0) {
+        return NextResponse.json(
+          { error: 'Only admins can update user names' },
+          { status: 403 }
+        )
+      }
     }
 
     // Verify the user exists
@@ -99,4 +104,3 @@ export async function PATCH(
     )
   }
 }
-

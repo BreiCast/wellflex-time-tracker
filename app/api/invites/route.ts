@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 const inviteSchema = z.object({
@@ -23,20 +24,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { team_id, email, role } = inviteSchema.parse(body)
 
-    // Verify user is admin/manager of team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', team_id)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    const memberRole = (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' } | null)?.role
-    if (!teamMember || !memberRole || !['ADMIN', 'MANAGER'].includes(memberRole)) {
-      return NextResponse.json(
-        { error: 'Only admins and managers can send invites' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify user is admin/manager of team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', team_id)
+        .eq('user_id', user.id)
+        .single()
+
+      const memberRole = (teamMember as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' } | null)?.role
+      if (!teamMember || !memberRole || !['ADMIN', 'MANAGER'].includes(memberRole)) {
+        return NextResponse.json(
+          { error: 'Only admins and managers can send invites' },
+          { status: 403 }
+        )
+      }
     }
 
     // Check if user already exists in public.users
@@ -155,4 +160,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

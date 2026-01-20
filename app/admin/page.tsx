@@ -28,18 +28,23 @@ export default function AdminPage() {
 
       setUser(session.user)
 
-      const { data: teamMembers } = await supabase
-        .from('team_members')
-        .select('team_id, role, teams(id, name)')
-        .eq('user_id', session.user.id)
-        .in('role', ['MANAGER', 'ADMIN'])
-
-      const teamList: any[] = teamMembers
-        ? teamMembers.map((tm: any) => ({
-            id: tm.team_id,
-            name: tm.teams.name,
-            role: tm.role,
-          }))
+      const response = await fetch('/api/teams', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+      const result = await response.json()
+      const isSuperAdminUser = Boolean(result.is_superadmin)
+      const teamList: any[] = response.ok
+        ? (result.teams || [])
+            .filter((team: any) =>
+              isSuperAdminUser || ['MANAGER', 'ADMIN'].includes(team.role)
+            )
+            .map((team: any) => ({
+              id: team.id,
+              name: team.name,
+              role: team.role,
+            }))
         : []
 
       if (teamList.length > 0) {

@@ -25,6 +25,7 @@ function DashboardContent() {
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [activeTab, setActiveTab] = useState<string>('tracking')
   const [userRole, setUserRole] = useState<string>('MEMBER')
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
   // Read tab and team from URL query params
   useEffect(() => {
@@ -50,50 +51,53 @@ function DashboardContent() {
     if (!session) return []
 
     try {
-      // Load user's teams directly from team_members
-      const { data: teamMembers, error: teamError } = await supabase
-        .from('team_members')
-        .select('team_id, role, teams(id, name)')
-        .eq('user_id', session.user.id)
+      const response = await fetch('/api/teams', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+      const result = await response.json()
 
-      if (teamError) {
-        console.error('Error loading teams:', teamError)
+      if (!response.ok) {
+        console.error('Error loading teams:', result.error)
         return []
       }
 
-      if (teamMembers && teamMembers.length > 0) {
-        const hasManagementRole = teamMembers.some((tm: any) => tm.role === 'ADMIN' || tm.role === 'MANAGER')
-        setUserRole(hasManagementRole ? 'ADMIN' : 'MEMBER')
+      const teamList = (result.teams || []).map((team: any) => ({
+        id: team.id,
+        name: team.name,
+        role: team.role,
+      }))
 
-        const teamList = teamMembers
-          .filter((tm: any) => tm.teams) // Filter out any null teams
-          .map((tm: any) => ({
-            id: tm.team_id,
-            name: tm.teams.name,
-          }))
+      if (teamList.length > 0) {
+        const hasManagementRole = teamList.some((tm: any) =>
+          ['ADMIN', 'MANAGER', 'SUPERADMIN'].includes(tm.role)
+        )
+        const superAdminFlag = Boolean(result.is_superadmin)
+        setIsSuperAdmin(superAdminFlag)
+        setUserRole(superAdminFlag ? 'SUPERADMIN' : (hasManagementRole ? 'ADMIN' : 'MEMBER'))
+
         setTeams(teamList)
         
         // Check URL parameter first, then selectedTeam, then default to first team
         const teamParam = searchParams.get('team')
+        let resolvedTeamId = ''
         if (teamParam && teamList.some(t => t.id === teamParam)) {
           // URL parameter takes precedence
           setSelectedTeam(teamParam)
+          resolvedTeamId = teamParam
         } else if (teamList.length > 0 && !selectedTeam) {
           // Only set default team if no team is selected and no valid URL param
           setSelectedTeam(teamList[0].id)
+          resolvedTeamId = teamList[0].id
+        } else {
+          resolvedTeamId = selectedTeam
         }
-        
-        // Load user role for selected team
-        if (selectedTeam || (teamList.length > 0 && teamList[0].id)) {
-          const teamId = selectedTeam || teamList[0].id
-          const { data: memberData } = await supabase
-            .from('team_members')
-            .select('role')
-            .eq('team_id', teamId)
-            .eq('user_id', session.user.id)
-            .single()
-          if (memberData && 'role' in memberData) {
-            setUserRole((memberData as any).role)
+
+        if (!superAdminFlag && resolvedTeamId) {
+          const selected = teamList.find((team: any) => team.id === resolvedTeamId)
+          if (selected?.role) {
+            setUserRole(selected.role)
           }
         }
         
@@ -280,19 +284,13 @@ function DashboardContent() {
                   selectedTeam={selectedTeam}
                   onTeamChange={async (teamId) => {
                     setSelectedTeam(teamId)
-                    // Load user role for new team
-                    const supabase = createClient()
-                    const { data: { session } } = await supabase.auth.getSession()
-                    if (session) {
-                      const { data: memberData } = await supabase
-                        .from('team_members')
-                        .select('role')
-                        .eq('team_id', teamId)
-                        .eq('user_id', session.user.id)
-                        .single()
-                      if (memberData && 'role' in memberData) {
-                        setUserRole((memberData as any).role)
-                      }
+                    if (isSuperAdmin) {
+                      setUserRole('SUPERADMIN')
+                      return
+                    }
+                    const selected = teams.find((team: any) => team.id === teamId)
+                    if (selected?.role) {
+                      setUserRole(selected.role)
                     }
                   }}
                 />

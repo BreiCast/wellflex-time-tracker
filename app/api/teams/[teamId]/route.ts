@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 const updateTeamSchema = z.object({
@@ -26,19 +27,23 @@ export async function PUT(
     const body = await request.json()
     const { name, color } = updateTeamSchema.parse(body)
 
-    // Check if user is ADMIN of the team
-    const { data: member } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!member || (member as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Only team admins can update team details' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Check if user is ADMIN of the team
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!member || (member as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'Only team admins can update team details' },
+          { status: 403 }
+        )
+      }
     }
 
     // Build update object
@@ -112,19 +117,23 @@ export async function DELETE(
     const supabase = createServiceSupabaseClient()
     const { teamId } = params
 
-    // Check if user is ADMIN of the team
-    const { data: member } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!member || (member as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Only team admins can delete teams' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Check if user is ADMIN of the team
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!member || (member as { role: 'MEMBER' | 'MANAGER' | 'ADMIN' }).role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'Only team admins can delete teams' },
+          { status: 403 }
+        )
+      }
     }
 
     // Check if team has other members
@@ -168,4 +177,3 @@ export async function DELETE(
     )
   }
 }
-

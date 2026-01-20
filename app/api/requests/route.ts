@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { createRequestSchema, reviewRequestSchema } from '@/lib/validations/schemas'
 import { sendRequestNotificationEmail, sendRequestConfirmationEmail } from '@/lib/utils/email'
 import { z } from 'zod'
@@ -184,19 +185,23 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Verify user is manager/admin
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', (requestData as { team_id: string }).team_id)
-      .eq('user_id', user.id)
-      .single()
+    const isSuperAdminUser = isSuperAdmin(user)
 
-    if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
-      return NextResponse.json(
-        { error: 'Only managers and admins can review requests' },
-        { status: 403 }
-      )
+    if (!isSuperAdminUser) {
+      // Verify user is manager/admin
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', (requestData as { team_id: string }).team_id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!teamMember || !['MANAGER', 'ADMIN'].includes((teamMember as { role: string }).role)) {
+        return NextResponse.json(
+          { error: 'Only managers and admins can review requests' },
+          { status: 403 }
+        )
+      }
     }
 
     const { data: updatedRequest, error } = await (supabase
@@ -232,4 +237,3 @@ export async function PATCH(request: NextRequest) {
     )
   }
 }
-

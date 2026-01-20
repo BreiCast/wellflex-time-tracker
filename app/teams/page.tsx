@@ -12,7 +12,7 @@ interface Team {
   name: string
   color?: string
   created_at: string
-  role: 'MEMBER' | 'MANAGER' | 'ADMIN'
+  role: 'MEMBER' | 'MANAGER' | 'ADMIN' | 'SUPERADMIN'
 }
 
 export default function TeamsPage() {
@@ -57,35 +57,29 @@ export default function TeamsPage() {
 
     setError('')
     try {
-      // Load user's teams directly from team_members
-      const { data: teamMembers, error: teamError } = await supabase
-        .from('team_members')
-        .select('team_id, role, teams(id, name, color, created_at)')
-        .eq('user_id', session.user.id)
+      const response = await fetch('/api/teams', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
 
-      if (teamError) {
-        console.error('Error loading teams:', teamError)
-        setError(`Failed to load teams: ${teamError.message}`)
-        return
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to load teams')
       }
 
-      if (teamMembers && teamMembers.length > 0) {
-        const hasManagementRole = teamMembers.some((tm: any) => tm.role === 'ADMIN' || tm.role === 'MANAGER')
-        setUserRole(hasManagementRole ? 'ADMIN' : 'MEMBER')
+      const teamList = (result.teams || []) as Team[]
+      const hasManagementRole = teamList.some((tm: Team) =>
+        tm.role === 'ADMIN' || tm.role === 'MANAGER' || tm.role === 'SUPERADMIN'
+      )
+      const superAdminRole = result.is_superadmin ? 'SUPERADMIN' : null
+      setUserRole(superAdminRole || (hasManagementRole ? 'ADMIN' : 'MEMBER'))
 
-        const teamList = teamMembers
-          .filter((tm: any) => tm.teams)
-          .map((tm: any) => ({
-            id: tm.team_id,
-            name: tm.teams.name,
-            color: tm.teams.color || '#6366f1',
-            created_at: tm.teams.created_at,
-            role: tm.role,
-          }))
-        setTeams(teamList)
+      setTeams(teamList)
+      if (teamList.length > 0) {
         console.log('Loaded teams:', teamList)
       } else {
-        setTeams([])
         console.log('No teams found for user:', session.user.id)
       }
     } catch (error: any) {
@@ -479,10 +473,18 @@ export default function TeamsPage() {
                               ? 'bg-indigo-100 text-indigo-700'
                               : team.role === 'MANAGER'
                               ? 'bg-emerald-100 text-emerald-700'
+                              : team.role === 'SUPERADMIN'
+                              ? 'bg-amber-100 text-amber-700'
                               : 'bg-slate-100 text-slate-500'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
-                               team.role === 'ADMIN' ? 'bg-indigo-500' : team.role === 'MANAGER' ? 'bg-emerald-500' : 'bg-slate-400'
+                               team.role === 'ADMIN'
+                                 ? 'bg-indigo-500'
+                                 : team.role === 'MANAGER'
+                                 ? 'bg-emerald-500'
+                                 : team.role === 'SUPERADMIN'
+                                 ? 'bg-amber-500'
+                                 : 'bg-slate-400'
                             }`}></span>
                             {team.role}
                           </span>
@@ -532,7 +534,7 @@ export default function TeamsPage() {
                             </div>
                           ) : (
                             <div className="flex justify-end items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-                              {team.role === 'ADMIN' && (
+                              {(team.role === 'ADMIN' || team.role === 'SUPERADMIN') && (
                                 <>
                                   <button
                                     onClick={() => handleStartEdit(team)}
@@ -612,7 +614,7 @@ export default function TeamsPage() {
                                 <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100">
                                   <ScheduleManager 
                                     teamId={team.id}
-                                    userRole={userRole as 'MEMBER' | 'MANAGER' | 'ADMIN'}
+                                    userRole={userRole as 'MEMBER' | 'MANAGER' | 'ADMIN' | 'SUPERADMIN'}
                                     onScheduleUpdated={async () => {
                                       await loadSchedules()
                                     }}
@@ -634,4 +636,3 @@ export default function TeamsPage() {
     </div>
   )
 }
-

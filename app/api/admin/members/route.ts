@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,24 +15,42 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServiceSupabaseClient()
     
-    const { data: teamMembers, error: teamError } = await supabase
-      .from('team_members')
-      .select('team_id')
-      .eq('user_id', admin.id)
-      .in('role', ['MANAGER', 'ADMIN'])
+    const isSuperAdminUser = isSuperAdmin(admin)
+    let teamIds: string[] = []
 
-    if (teamError) {
-      return NextResponse.json(
-        { error: 'Failed to load teams', details: teamError.message },
-        { status: 400 }
-      )
+    if (isSuperAdminUser) {
+      const { data: teams, error: teamsError } = await supabase
+        .from('teams')
+        .select('id')
+
+      if (teamsError) {
+        return NextResponse.json(
+          { error: 'Failed to load teams', details: teamsError.message },
+          { status: 400 }
+        )
+      }
+
+      teamIds = teams?.map((team: any) => team.id) || []
+    } else {
+      const { data: teamMembers, error: teamError } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', admin.id)
+        .in('role', ['MANAGER', 'ADMIN'])
+
+      if (teamError) {
+        return NextResponse.json(
+          { error: 'Failed to load teams', details: teamError.message },
+          { status: 400 }
+        )
+      }
+
+      teamIds = teamMembers?.map((tm: any) => tm.team_id) || []
     }
 
-    if (!teamMembers || teamMembers.length === 0) {
+    if (teamIds.length === 0) {
       return NextResponse.json({ members: [] })
     }
-
-    const teamIds = teamMembers.map(tm => tm.team_id)
 
     // Get all members from those teams with their user info and team info
     const { data: allMembers, error: membersError } = await supabase
