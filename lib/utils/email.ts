@@ -163,7 +163,7 @@ Please review this request in the admin panel.
     console.log('[EMAIL] ✅ Notification emails sent successfully', {
       sent: results.length,
       emails: ADMIN_EMAILS,
-      results: results.map((r: any) => ({ id: r?.id, to: r?.to }))
+      results: results
     })
   } catch (error: any) {
     console.error('[EMAIL] ❌ Failed to send request notification email:', {
@@ -330,7 +330,6 @@ If you have any questions, please contact your team administrator.
     })
     console.log('[EMAIL] ✅ Confirmation email sent successfully to requester', {
       email: userEmail,
-      resultId: result?.id,
       result: result
     })
   } catch (error: any) {
