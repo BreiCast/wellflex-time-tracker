@@ -286,117 +286,119 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
                 {timesheet.filter(e => e.totalMinutes > 0 || e.adjustments.length > 0).map((entry, index) => (
-                  <tr key={`${entry.date}-${entry.user_id || ''}-${index}`} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-900">
-                        {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                      </div>
-                    </td>
-                    {viewAllMembers && (
+                  <>
+                    <tr key={`${entry.date}-${entry.user_id || ''}-${index}`} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-black text-slate-700">
-                          {entry.user_name || 'Unknown'}
+                        <div className="text-sm font-bold text-slate-900">
+                          {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </div>
                       </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-600 font-mono">
-                        {entry.clockIn ? new Date(entry.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-600 font-mono">
-                        {entry.clockOut ? new Date(entry.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-500 font-mono">
-                        {entry.breakMinutes > 0 ? formatMinutes(entry.breakMinutes) : '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-black text-slate-900 font-mono">
-                        {formatMinutes(entry.workMinutes)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        {entry.workMinutes > 480 ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-700 uppercase">Overtime</span>
-                        ) : entry.workMinutes > 0 ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">Regular</span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-400 uppercase">No Data</span>
-                        )}
-                        {entry.adjustments && entry.adjustments.length > 0 && (
-                          <button
-                            onClick={() => {
-                              const key = `${entry.date}-${entry.user_id || ''}`
-                              setExpandedEntries(prev => {
-                                const newSet = new Set(prev)
-                                if (newSet.has(key)) {
-                                  newSet.delete(key)
-                                } else {
-                                  newSet.add(key)
-                                }
-                                return newSet
-                              })
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-                            title={`${entry.adjustments.length} adjustment(s)`}
-                          >
-                            {entry.adjustments.length} ⚙️
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {entry.adjustments && entry.adjustments.length > 0 && expandedEntries.has(`${entry.date}-${entry.user_id || ''}`) && (
-                    <tr className="bg-amber-50/50">
-                      <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-4">
-                        <div className="space-y-2">
-                          <p className="text-xs font-black text-amber-700 uppercase tracking-wider mb-2">Adjustments</p>
-                          {entry.adjustments.map((adj: any) => (
-                            <div key={adj.id} className="flex items-center justify-between bg-white rounded-xl p-3 border border-amber-200">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3">
-                                  <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${
-                                    adj.adjustment_type === 'ADD_TIME' ? 'bg-emerald-100 text-emerald-700' :
-                                    adj.adjustment_type === 'SUBTRACT_TIME' ? 'bg-rose-100 text-rose-700' :
-                                    'bg-indigo-100 text-indigo-700'
-                                  }`}>
-                                    {adj.adjustment_type.replace('_', ' ')}
-                                  </span>
-                                  <span className="text-sm font-mono font-black text-slate-900">
-                                    {formatMinutes(adj.minutes)}
-                                  </span>
-                                  <span className="text-xs text-slate-500">
-                                    {new Date(adj.effective_date).toLocaleDateString()}
-                                  </span>
-                                  {adj.description && (
-                                    <span className="text-xs text-slate-600 italic">
-                                      {adj.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN') && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedAdjustment(adj)
-                                    setIsAdjustmentModalOpen(true)
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                                >
-                                  Edit
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                      {viewAllMembers && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-black text-slate-700">
+                            {entry.user_name || 'Unknown'}
+                          </div>
+                        </td>
+                      )}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-600 font-mono">
+                          {entry.clockIn ? new Date(entry.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-600 font-mono">
+                          {entry.clockOut ? new Date(entry.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-500 font-mono">
+                          {entry.breakMinutes > 0 ? formatMinutes(entry.breakMinutes) : '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-black text-slate-900 font-mono">
+                          {formatMinutes(entry.workMinutes)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {entry.workMinutes > 480 ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-700 uppercase">Overtime</span>
+                          ) : entry.workMinutes > 0 ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">Regular</span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-400 uppercase">No Data</span>
+                          )}
+                          {entry.adjustments && entry.adjustments.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const key = `${entry.date}-${entry.user_id || ''}`
+                                setExpandedEntries(prev => {
+                                  const newSet = new Set(prev)
+                                  if (newSet.has(key)) {
+                                    newSet.delete(key)
+                                  } else {
+                                    newSet.add(key)
+                                  }
+                                  return newSet
+                                })
+                              }}
+                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                              title={`${entry.adjustments.length} adjustment(s)`}
+                            >
+                              {entry.adjustments.length} ⚙️
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  )}
+                    {entry.adjustments && entry.adjustments.length > 0 && expandedEntries.has(`${entry.date}-${entry.user_id || ''}`) && (
+                      <tr key={`${entry.date}-${entry.user_id || ''}-adjustments`} className="bg-amber-50/50">
+                        <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-4">
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-amber-700 uppercase tracking-wider mb-2">Adjustments</p>
+                            {entry.adjustments.map((adj: any) => (
+                              <div key={adj.id} className="flex items-center justify-between bg-white rounded-xl p-3 border border-amber-200">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${
+                                      adj.adjustment_type === 'ADD_TIME' ? 'bg-emerald-100 text-emerald-700' :
+                                      adj.adjustment_type === 'SUBTRACT_TIME' ? 'bg-rose-100 text-rose-700' :
+                                      'bg-indigo-100 text-indigo-700'
+                                    }`}>
+                                      {adj.adjustment_type.replace('_', ' ')}
+                                    </span>
+                                    <span className="text-sm font-mono font-black text-slate-900">
+                                      {formatMinutes(adj.minutes)}
+                                    </span>
+                                    <span className="text-xs text-slate-500">
+                                      {new Date(adj.effective_date).toLocaleDateString()}
+                                    </span>
+                                    {adj.description && (
+                                      <span className="text-xs text-slate-600 italic">
+                                        {adj.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN') && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAdjustment(adj)
+                                      setIsAdjustmentModalOpen(true)
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
                 {timesheet.filter(e => e.totalMinutes > 0 || e.adjustments.length > 0).length === 0 && (
                   <tr>
