@@ -63,7 +63,7 @@ export async function POST(
 
     // Insert comment
     const { data: newComment, error: commentError } = await supabase
-      .from('request_comments')
+      .from('request_comments' as any)
       .insert({
         request_id: requestId,
         user_id: user.id,

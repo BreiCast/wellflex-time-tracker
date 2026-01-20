@@ -61,7 +61,7 @@ export async function GET(
 
     // Get comments with user info
     const { data: comments, error: commentsError } = await supabase
-      .from('request_comments')
+      .from('request_comments' as any)
       .select(`
         *,
         users!request_comments_user_id_fkey(email, full_name)
