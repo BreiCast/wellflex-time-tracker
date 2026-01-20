@@ -89,7 +89,7 @@ export async function POST(
       } as any)
       .select(`
         *,
-        users(id, email, full_name)
+        users!request_comments_user_id_fkey(id, email, full_name)
       `)
       .single()
 
