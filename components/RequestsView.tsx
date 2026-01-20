@@ -15,6 +15,8 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   const [formData, setFormData] = useState({
     request_type: '',
     description: '',
+    requested_date: new Date().toISOString().split('T')[0],
+    requested_time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
   })
 
   const loadRequests = useCallback(async () => {
@@ -64,6 +66,10 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           team_id: teamId,
           request_type: formData.request_type,
           description: formData.description,
+          requested_data: {
+            date: formData.requested_date,
+            time: formData.requested_time,
+          },
         }),
       })
 
@@ -71,7 +77,12 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
 
       if (response.ok) {
         setShowForm(false)
-        setFormData({ request_type: '', description: '' })
+        setFormData({ 
+          request_type: '', 
+          description: '',
+          requested_date: new Date().toISOString().split('T')[0],
+          requested_time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        })
         loadRequests()
       } else {
         alert(result.error || 'Failed to create request')
@@ -135,7 +146,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
         <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500">
           <h4 className="text-lg font-black text-slate-900 mb-6">Create New Request</h4>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
                   Request Type
@@ -153,6 +164,30 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   <option value="Break Adjustment">Break Adjustment</option>
                   <option value="Other">Other</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  Requested Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.requested_date}
+                  onChange={(e) => setFormData({ ...formData, requested_date: e.target.value })}
+                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  Requested Time
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={formData.requested_time}
+                  onChange={(e) => setFormData({ ...formData, requested_time: e.target.value })}
+                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                />
               </div>
             </div>
             <div>
@@ -213,6 +248,28 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                     </span>
                   </div>
                   <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{request.request_type}</h4>
+                  
+                  {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time) && (
+                    <div className="flex flex-wrap items-center gap-3 mt-2 mb-3">
+                      {request.requested_data.date && (
+                        <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
+                      {request.requested_data.time && (
+                        <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50/50 px-3 py-1.5 rounded-xl border border-amber-100">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {request.requested_data.time}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-sm font-bold text-slate-500 mt-1 leading-relaxed">{request.description}</p>
                   
                   {request.review_notes && (
