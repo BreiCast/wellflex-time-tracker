@@ -11,6 +11,8 @@ interface AdminRequestsViewProps {
 export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequestsViewProps) {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null)
+  const [reviewNotesByRequest, setReviewNotesByRequest] = useState<Record<string, string>>({})
 
   const loadRequests = useCallback(async () => {
     if (!teamIds || teamIds.length === 0) {
@@ -67,6 +69,11 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
   }, [teamIds, selectedTeamId])
 
   useEffect(() => {
+    setReviewNotesByRequest({})
+    setExpandedRequestId(null)
+  }, [selectedTeamId])
+
+  useEffect(() => {
     loadRequests()
   }, [loadRequests])
 
@@ -94,6 +101,7 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
 
       if (response.ok) {
         loadRequests()
+        setExpandedRequestId(null)
       } else {
         alert(result.error || 'Failed to review request')
       }
@@ -142,6 +150,8 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
       <div className="space-y-4 max-h-[32rem] overflow-y-auto pr-2 custom-scrollbar">
         {requests.map((request) => {
         const user = request.users as any
+        const isExpanded = expandedRequestId === request.id
+        const reviewNotesValue = reviewNotesByRequest[request.id] || ''
         return (
           <div
             key={request.id}
@@ -182,6 +192,19 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
                     {(request.teams as any)?.name || 'Unknown Team'}
                   </span>
                 )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700">
+                  Pending Review
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setExpandedRequestId(isExpanded ? null : request.id)}
+                  className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50/60 px-3 py-1 rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                >
+                  {isExpanded ? 'Hide details' : 'View details'}
+                </button>
               </div>
 
               {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date || request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
@@ -226,13 +249,60 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
               <p className="text-sm font-bold text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100 italic">
                 "{request.description}"
               </p>
+
+              {isExpanded && (
+                <div className="mt-6 space-y-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Request type</p>
+                      <p className="text-sm font-bold text-slate-700">{request.request_type}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Submitted</p>
+                      <p className="text-sm font-bold text-slate-700">
+                        {new Date(request.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Team</p>
+                      <p className="text-sm font-bold text-slate-700">{(request.teams as any)?.name || 'Unknown Team'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requester</p>
+                      <p className="text-sm font-bold text-slate-700">{user?.full_name || user?.email || 'Unknown User'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                      Admin comment (optional)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={reviewNotesValue}
+                      onChange={(event) =>
+                        setReviewNotesByRequest((prev) => ({
+                          ...prev,
+                          [request.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Add context for the requester (e.g., needs documentation, dates confirmed)."
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 mt-auto">
               <button
                 onClick={() => {
-                  const notes = prompt('Review notes (optional):')
-                  handleReview(request.id, 'APPROVED', notes || undefined)
+                  handleReview(request.id, 'APPROVED', reviewNotesValue || undefined)
                 }}
                 className="flex-1 flex items-center justify-center py-3 bg-emerald-600 text-white text-xs font-black rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all transform active:scale-95"
               >
@@ -243,8 +313,7 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
               </button>
               <button
                 onClick={() => {
-                  const notes = prompt('Review notes (optional):')
-                  handleReview(request.id, 'REJECTED', notes || undefined)
+                  handleReview(request.id, 'REJECTED', reviewNotesValue || undefined)
                 }}
                 className="flex-1 flex items-center justify-center py-3 bg-white border-2 border-rose-100 text-rose-600 text-xs font-black rounded-xl hover:bg-rose-50 hover:border-rose-200 transition-all transform active:scale-95"
               >
@@ -261,4 +330,3 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
     </div>
   )
 }
-
