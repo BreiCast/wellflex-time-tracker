@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         description,
         requested_data: requested_data || null,
         created_by: user.id,
+        status: 'PENDING',
       } as any)
       .select()
       .single()
