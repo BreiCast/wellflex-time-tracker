@@ -179,13 +179,6 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if ((requestData as { status: string }).status !== 'PENDING') {
-      return NextResponse.json(
-        { error: 'Request already reviewed' },
-        { status: 400 }
-      )
-    }
-
     const isSuperAdminUser = isSuperAdmin(user)
 
     if (!isSuperAdminUser) {

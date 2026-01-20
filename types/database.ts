@@ -521,7 +521,7 @@ export type Database = {
     Enums: {
       adjustment_type: "ADD_TIME" | "SUBTRACT_TIME" | "OVERRIDE"
       break_type: "BREAK" | "LUNCH"
-      request_status: "PENDING" | "APPROVED" | "REJECTED"
+      request_status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "APPROVED" | "REJECTED"
       role_type: "MEMBER" | "MANAGER" | "ADMIN"
     }
     CompositeTypes: {
@@ -652,7 +652,7 @@ export const Constants = {
     Enums: {
       adjustment_type: ["ADD_TIME", "SUBTRACT_TIME", "OVERRIDE"],
       break_type: ["BREAK", "LUNCH"],
-      request_status: ["PENDING", "APPROVED", "REJECTED"],
+      request_status: ["PENDING", "IN_PROGRESS", "COMPLETED", "APPROVED", "REJECTED"],
       role_type: ["MEMBER", "MANAGER", "ADMIN"],
     },
   },
