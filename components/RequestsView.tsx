@@ -16,7 +16,8 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     request_type: '',
     description: '',
     requested_date: new Date().toISOString().split('T')[0],
-    requested_time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    requested_time_from: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    requested_time_to: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
   })
 
   const loadRequests = useCallback(async () => {
@@ -68,7 +69,8 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           description: formData.description,
           requested_data: {
             date: formData.requested_date,
-            time: formData.requested_time,
+            time_from: formData.requested_time_from,
+            time_to: formData.requested_time_to,
           },
         }),
       })
@@ -81,7 +83,8 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           request_type: '', 
           description: '',
           requested_date: new Date().toISOString().split('T')[0],
-          requested_time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          requested_time_from: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          requested_time_to: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         })
         loadRequests()
       } else {
@@ -146,7 +149,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
         <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500">
           <h4 className="text-lg font-black text-slate-900 mb-6">Create New Request</h4>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
                   Request Type
@@ -158,11 +161,23 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 appearance-none cursor-pointer"
                 >
                   <option value="">Select a type...</option>
-                  <option value="Time Correction">Time Correction</option>
-                  <option value="Missing Clock Out">Missing Clock Out</option>
-                  <option value="Missing Clock In">Missing Clock In</option>
-                  <option value="Break Adjustment">Break Adjustment</option>
-                  <option value="Other">Other</option>
+                  <optgroup label="Time Corrections">
+                    <option value="Time Correction">Time Correction</option>
+                    <option value="Missing Clock In">Missing Clock In</option>
+                    <option value="Missing Clock Out">Missing Clock Out</option>
+                    <option value="Break Adjustment">Break Adjustment</option>
+                  </optgroup>
+                  <optgroup label="Time Off & Leave">
+                    <option value="PTO">PTO</option>
+                    <option value="Medical Leave">Medical Leave</option>
+                    <option value="Vacation">Vacation</option>
+                    <option value="Personal Day">Personal Day</option>
+                    <option value="Holiday">Holiday</option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="Training">Training</option>
+                    <option value="Other">Other</option>
+                  </optgroup>
                 </select>
               </div>
               <div>
@@ -177,15 +192,29 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  Requested Time
+                  From Time
                 </label>
                 <input
                   type="time"
                   required
-                  value={formData.requested_time}
-                  onChange={(e) => setFormData({ ...formData, requested_time: e.target.value })}
+                  value={formData.requested_time_from}
+                  onChange={(e) => setFormData({ ...formData, requested_time_from: e.target.value })}
+                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  To Time
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={formData.requested_time_to}
+                  onChange={(e) => setFormData({ ...formData, requested_time_to: e.target.value })}
                   className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
                 />
               </div>
@@ -249,7 +278,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   </div>
                   <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{request.request_type}</h4>
                   
-                  {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time) && (
+                  {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time_from || request.requested_data.time) && (
                     <div className="flex flex-wrap items-center gap-3 mt-2 mb-3">
                       {request.requested_data.date && (
                         <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100">
@@ -259,12 +288,15 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                           {new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
                       )}
-                      {request.requested_data.time && (
+                      {(request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
                         <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50/50 px-3 py-1.5 rounded-xl border border-amber-100">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          {request.requested_data.time}
+                          {request.requested_data.time_from && request.requested_data.time_to 
+                            ? `${request.requested_data.time_from} - ${request.requested_data.time_to}`
+                            : request.requested_data.time || (request.requested_data.time_from || request.requested_data.time_to)
+                          }
                         </div>
                       )}
                     </div>

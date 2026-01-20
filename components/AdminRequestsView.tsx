@@ -184,7 +184,7 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
                 )}
               </div>
 
-              {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time) && (
+              {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date || request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
                 <div className="flex flex-wrap items-center gap-3 mb-4">
                   {request.requested_data.date && (
                     <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100">
@@ -194,12 +194,15 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
                       {new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                   )}
-                  {request.requested_data.time && (
+                  {(request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
                     <div className="flex items-center text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50/50 px-3 py-1.5 rounded-xl border border-amber-100">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      {request.requested_data.time}
+                      {request.requested_data.time_from && request.requested_data.time_to 
+                        ? `${request.requested_data.time_from} - ${request.requested_data.time_to}`
+                        : request.requested_data.time || (request.requested_data.time_from || request.requested_data.time_to)
+                      }
                     </div>
                   )}
                 </div>
