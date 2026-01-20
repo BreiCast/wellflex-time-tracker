@@ -14,7 +14,7 @@ export default function AdminSchedulesPage() {
   const [selectedUser, setSelectedUser] = useState<string>('')
   const [members, setMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [userRole, setUserRole] = useState<string>('MEMBER')
+  const [userRole, setUserRole] = useState<'MEMBER' | 'MANAGER' | 'ADMIN' | 'SUPERADMIN'>('MEMBER')
 
   useEffect(() => {
     const loadData = async () => {
@@ -40,7 +40,7 @@ export default function AdminSchedulesPage() {
         return
       }
 
-      const role = teamMembers[0].role
+      const role = teamMembers[0].role as 'MEMBER' | 'MANAGER' | 'ADMIN' | 'SUPERADMIN'
       setUserRole(role)
 
       const teamList = teamMembers.map((tm: any) => ({
