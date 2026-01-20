@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 
 const ADMIN_EMAILS = [
-  'breider@wellflex.co',
+  'info@wellflex.co',
   'breidercastro@icloud.com'
 ]
 
@@ -11,22 +11,48 @@ const getEmailTransporter = () => {
   const smtpPort = process.env.SMTP_PORT
   const smtpUser = process.env.SMTP_USER
   const smtpPassword = process.env.SMTP_PASSWORD
-  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || smtpUser
+  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>'
+
+  console.log('[EMAIL] Checking SMTP configuration:', {
+    hasHost: !!smtpHost,
+    hasPort: !!smtpPort,
+    hasUser: !!smtpUser,
+    hasPassword: !!smtpPassword,
+    fromEmail: smtpFromEmail
+  })
 
   if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword) {
-    console.warn('[EMAIL] SMTP not configured, skipping email')
+    console.error('[EMAIL] ❌ SMTP not fully configured:', {
+      missing: {
+        host: !smtpHost,
+        port: !smtpPort,
+        user: !smtpUser,
+        password: !smtpPassword
+      }
+    })
     return null
   }
 
-  return nodemailer.createTransport({
-    host: smtpHost,
-    port: parseInt(smtpPort),
-    secure: smtpPort === '465', // true for 465, false for other ports
-    auth: {
-      user: smtpUser,
-      pass: smtpPassword,
-    },
-  })
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: parseInt(smtpPort),
+      secure: smtpPort === '465', // true for 465, false for other ports
+      auth: {
+        user: smtpUser,
+        pass: smtpPassword,
+      },
+    })
+    
+    console.log('[EMAIL] ✅ SMTP transporter created successfully')
+    return transporter
+  } catch (error: any) {
+    console.error('[EMAIL] ❌ Failed to create SMTP transporter:', {
+      error: error?.message || error,
+      stack: error?.stack
+    })
+    return null
+  }
 }
 
 export async function sendRequestNotificationEmail(
@@ -163,19 +189,37 @@ Please review this request in the admin panel.
   `.trim()
 
   try {
+    const fromEmail = process.env.SMTP_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>'
+    console.log('[EMAIL] Attempting to send notification emails', {
+      from: fromEmail,
+      to: ADMIN_EMAILS,
+      count: ADMIN_EMAILS.length
+    })
+
     // Send to all admin emails
-    const emailPromises = ADMIN_EMAILS.map(email =>
-      transporter.sendMail({
-        from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'Time Tracker <noreply@wellflex.co>',
-        to: email,
-        subject,
-        html: htmlContent,
-        text: textContent,
-      })
-    )
+    const emailPromises = ADMIN_EMAILS.map(async (email) => {
+      try {
+        const result = await transporter.sendMail({
+          from: fromEmail,
+          to: email,
+          subject,
+          html: htmlContent,
+          text: textContent,
+        })
+        console.log('[EMAIL] ✅ Email sent to', email, { messageId: result.messageId })
+        return result
+      } catch (emailError: any) {
+        console.error('[EMAIL] ❌ Failed to send to', email, {
+          error: emailError?.message || emailError,
+          code: emailError?.code,
+          response: emailError?.response
+        })
+        throw emailError
+      }
+    })
 
     const results = await Promise.all(emailPromises)
-    console.log('[EMAIL] ✅ Notification emails sent successfully', {
+    console.log('[EMAIL] ✅ All notification emails sent successfully', {
       sent: results.length,
       emails: ADMIN_EMAILS,
       messageIds: results.map((r: any) => r.messageId)
@@ -184,7 +228,9 @@ Please review this request in the admin panel.
     console.error('[EMAIL] ❌ Failed to send request notification email:', {
       error: error?.message || error,
       stack: error?.stack,
-      code: error?.code
+      code: error?.code,
+      response: error?.response,
+      command: error?.command
     })
     // Don't throw - we don't want email failures to break request creation
   }
@@ -335,8 +381,14 @@ If you have any questions, please contact your team administrator.
   `.trim()
 
   try {
+    const fromEmail = process.env.SMTP_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>'
+    console.log('[EMAIL] Attempting to send confirmation email', {
+      from: fromEmail,
+      to: userEmail
+    })
+
     const result = await transporter.sendMail({
-      from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'Time Tracker <noreply@wellflex.co>',
+      from: fromEmail,
       to: userEmail,
       subject,
       html: htmlContent,
@@ -351,6 +403,8 @@ If you have any questions, please contact your team administrator.
       error: error?.message || error,
       stack: error?.stack,
       code: error?.code,
+      response: error?.response,
+      command: error?.command,
       email: userEmail
     })
     // Don't throw - we don't want email failures to break request creation
