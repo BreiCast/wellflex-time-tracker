@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ requests: [] })
     }
 
-    // Get all pending requests from those teams
+    // Get all requests from those teams
     const { data: requests, error: requestsError } = await supabase
       .from('requests')
       .select(`
@@ -61,7 +61,6 @@ export async function GET(request: NextRequest) {
         teams(id, name, color)
       `)
       .in('team_id', teamIds)
-      .or('status.eq.PENDING,status.is.null')
       .order('created_at', { ascending: false })
 
     if (requestsError) {

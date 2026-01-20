@@ -12,6 +12,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     request_type: '',
     description: '',
@@ -20,6 +21,50 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     requested_time_from: '',
     requested_time_to: '',
   })
+
+  const statusOptions = [
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'APPROVED', label: 'Approved' },
+    { value: 'REJECTED', label: 'Rejected' },
+  ] as const
+
+  const getStatusLabel = (status?: string | null) => {
+    if (!status) return 'Pending'
+    const match = statusOptions.find((option) => option.value === status)
+    return match?.label || status
+  }
+
+  const getStatusBadgeClasses = (status?: string | null) => {
+    switch (status) {
+      case 'APPROVED':
+        return 'bg-emerald-100 text-emerald-700'
+      case 'REJECTED':
+        return 'bg-rose-100 text-rose-700'
+      case 'IN_PROGRESS':
+        return 'bg-sky-100 text-sky-700'
+      case 'COMPLETED':
+        return 'bg-purple-100 text-purple-700'
+      default:
+        return 'bg-amber-100 text-amber-700'
+    }
+  }
+
+  const getStatusDotClasses = (status?: string | null) => {
+    switch (status) {
+      case 'APPROVED':
+        return 'bg-emerald-500'
+      case 'REJECTED':
+        return 'bg-rose-500'
+      case 'IN_PROGRESS':
+        return 'bg-sky-500'
+      case 'COMPLETED':
+        return 'bg-purple-500'
+      default:
+        return 'bg-amber-500 animate-pulse'
+    }
+  }
 
   const loadRequests = useCallback(async () => {
     if (!teamId) return
@@ -270,7 +315,9 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
             <p className="text-slate-300 text-sm mt-2">When you submit a time correction, it will appear here.</p>
           </div>
         ) : (
-          requests.map((request) => (
+          requests.map((request) => {
+            const isExpanded = expandedRequestId === request.id
+            return (
             <div
               key={request.id}
               className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 group"
@@ -278,21 +325,20 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                      request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-                      request.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
-                        request.status === 'APPROVED' ? 'bg-emerald-500' :
-                        request.status === 'REJECTED' ? 'bg-rose-500' :
-                        'bg-amber-500 animate-pulse'
-                      }`}></span>
-                      {request.status}
+                    <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${getStatusBadgeClasses(request.status)}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${getStatusDotClasses(request.status)}`}></span>
+                      {getStatusLabel(request.status)}
                     </span>
                     <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
                       {new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedRequestId(isExpanded ? null : request.id)}
+                      className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50/60 px-3 py-1 rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                    >
+                      {isExpanded ? 'Hide details' : 'View details'}
+                    </button>
                   </div>
                   <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{request.request_type}</h4>
                   
@@ -335,12 +381,40 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                     </div>
                   )}
 
-                  <p className="text-sm font-bold text-slate-500 mt-1 leading-relaxed">{request.description}</p>
-                  
-                  {request.review_notes && (
-                    <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Admin Feedback</p>
-                      <p className="text-sm font-bold text-slate-600 italic">“{request.review_notes}”</p>
+                  <p className="text-sm font-bold text-slate-500 mt-1 leading-relaxed">
+                    {request.description}
+                  </p>
+
+                  {isExpanded && (
+                    <div className="mt-5 space-y-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Submitted</p>
+                          <p className="text-sm font-bold text-slate-700">
+                            {new Date(request.created_at).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</p>
+                          <p className="text-sm font-bold text-slate-700">{getStatusLabel(request.status)}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</p>
+                        <p className="text-sm font-bold text-slate-600 italic">“{request.description}”</p>
+                      </div>
+                      {request.review_notes && (
+                        <div className="p-4 bg-white rounded-2xl border border-slate-100">
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Admin Feedback</p>
+                          <p className="text-sm font-bold text-slate-600 italic">“{request.review_notes}”</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -353,10 +427,9 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                 </div>
               </div>
             </div>
-          ))
-        )}
+          )
+        })}
       </div>
     </div>
   )
 }
-

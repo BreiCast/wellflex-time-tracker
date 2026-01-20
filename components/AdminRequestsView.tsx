@@ -13,6 +13,51 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
   const [loading, setLoading] = useState(true)
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null)
   const [reviewNotesByRequest, setReviewNotesByRequest] = useState<Record<string, string>>({})
+  const [statusByRequest, setStatusByRequest] = useState<Record<string, string>>({})
+
+  const statusOptions = [
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'APPROVED', label: 'Approved' },
+    { value: 'REJECTED', label: 'Rejected' },
+  ] as const
+
+  const getStatusLabel = (status?: string | null) => {
+    if (!status) return 'Pending'
+    const match = statusOptions.find((option) => option.value === status)
+    return match?.label || status
+  }
+
+  const getStatusBadgeClasses = (status?: string | null) => {
+    switch (status) {
+      case 'APPROVED':
+        return 'bg-emerald-100 text-emerald-700'
+      case 'REJECTED':
+        return 'bg-rose-100 text-rose-700'
+      case 'IN_PROGRESS':
+        return 'bg-sky-100 text-sky-700'
+      case 'COMPLETED':
+        return 'bg-purple-100 text-purple-700'
+      default:
+        return 'bg-amber-100 text-amber-700'
+    }
+  }
+
+  const getStatusDotClasses = (status?: string | null) => {
+    switch (status) {
+      case 'APPROVED':
+        return 'bg-emerald-500'
+      case 'REJECTED':
+        return 'bg-rose-500'
+      case 'IN_PROGRESS':
+        return 'bg-sky-500'
+      case 'COMPLETED':
+        return 'bg-purple-500'
+      default:
+        return 'bg-amber-500 animate-pulse'
+    }
+  }
 
   const loadRequests = useCallback(async () => {
     if (!teamIds || teamIds.length === 0) {
@@ -31,8 +76,6 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
       }
 
       // Use API route with service role to bypass RLS issues
-      const teamIdsToQuery = selectedTeamId && selectedTeamId !== '' ? [selectedTeamId] : teamIds
-      
       const response = await fetch('/api/admin/requests', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -71,13 +114,29 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
   useEffect(() => {
     setReviewNotesByRequest({})
     setExpandedRequestId(null)
+    setStatusByRequest({})
   }, [selectedTeamId])
 
   useEffect(() => {
     loadRequests()
   }, [loadRequests])
 
-  const handleReview = async (requestId: string, status: 'APPROVED' | 'REJECTED', notes?: string) => {
+  useEffect(() => {
+    if (requests.length === 0) {
+      setStatusByRequest({})
+      return
+    }
+
+    setStatusByRequest(() => {
+      const next: Record<string, string> = {}
+      requests.forEach((request) => {
+        next[request.id] = request.status || 'PENDING'
+      })
+      return next
+    })
+  }, [requests])
+
+  const handleReview = async (requestId: string, status: string, notes?: string) => {
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
@@ -125,11 +184,11 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
         <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p className="text-slate-400 font-bold text-lg tracking-tight">No pending requests</p>
+        <p className="text-slate-400 font-bold text-lg tracking-tight">No requests yet</p>
         <p className="text-slate-300 text-xs mt-1">
           {selectedTeamId && selectedTeamId !== ''
-            ? 'No pending requests for the selected team.' 
-            : 'All caught up! No time corrections need review across all teams.'}
+            ? 'No requests for the selected team yet.'
+            : 'All caught up! No requests have been submitted across your teams.'}
         </p>
       </div>
     )
@@ -152,6 +211,8 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
         const user = request.users as any
         const isExpanded = expandedRequestId === request.id
         const reviewNotesValue = reviewNotesByRequest[request.id] || ''
+        const normalizedStatus = request.status || 'PENDING'
+        const selectedStatus = statusByRequest[request.id] || normalizedStatus
         return (
           <div
             key={request.id}
@@ -195,8 +256,9 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
               </div>
 
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700">
-                  Pending Review
+                <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${getStatusBadgeClasses(normalizedStatus)}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full mr-2 ${getStatusDotClasses(normalizedStatus)}`}></span>
+                  {getStatusLabel(normalizedStatus)}
                 </span>
                 <button
                   type="button"
@@ -277,6 +339,27 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requester</p>
                       <p className="text-sm font-bold text-slate-700">{user?.full_name || user?.email || 'Unknown User'}</p>
                     </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        Status
+                      </label>
+                      <select
+                        value={selectedStatus}
+                        onChange={(event) =>
+                          setStatusByRequest((prev) => ({
+                            ...prev,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {statusOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
@@ -299,28 +382,32 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
               )}
             </div>
 
-            <div className="flex gap-3 mt-auto">
+            <div className="flex flex-col md:flex-row gap-3 mt-auto">
               <button
                 onClick={() => {
-                  handleReview(request.id, 'APPROVED', reviewNotesValue || undefined)
+                  handleReview(request.id, selectedStatus, reviewNotesValue || undefined)
                 }}
-                className="flex-1 flex items-center justify-center py-3 bg-emerald-600 text-white text-xs font-black rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all transform active:scale-95"
+                className="flex-1 flex items-center justify-center py-3 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all transform active:scale-95"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 12h16m-8-8v16" />
                 </svg>
-                APPROVE
+                Update Status
               </button>
               <button
-                onClick={() => {
-                  handleReview(request.id, 'REJECTED', reviewNotesValue || undefined)
-                }}
-                className="flex-1 flex items-center justify-center py-3 bg-white border-2 border-rose-100 text-rose-600 text-xs font-black rounded-xl hover:bg-rose-50 hover:border-rose-200 transition-all transform active:scale-95"
+                type="button"
+                onClick={() => setExpandedRequestId(isExpanded ? null : request.id)}
+                className="flex-1 flex items-center justify-center py-3 bg-white border-2 border-slate-100 text-slate-500 text-xs font-black rounded-xl hover:bg-slate-50 hover:border-slate-200 transition-all transform active:scale-95"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d={isExpanded ? 'M6 18L18 6M6 6l12 12' : 'M4 12h16m-8-8v16'}
+                  />
                 </svg>
-                REJECT
+                {isExpanded ? 'Close' : 'Details'}
               </button>
             </div>
           </div>

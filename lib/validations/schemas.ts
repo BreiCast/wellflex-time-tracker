@@ -32,7 +32,7 @@ export const createRequestSchema = z.object({
 
 export const reviewRequestSchema = z.object({
   request_id: z.string().uuid(),
-  status: z.enum(['APPROVED', 'REJECTED']),
+  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'APPROVED', 'REJECTED']),
   review_notes: z.string().optional(),
 })
 
@@ -53,4 +53,3 @@ export const getTimesheetSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
-
