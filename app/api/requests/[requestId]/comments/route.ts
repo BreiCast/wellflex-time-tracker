@@ -67,7 +67,7 @@ export async function POST(
       .insert({
         request_id: requestId,
         user_id: user.id,
-        content,
+        comment_text: content,
         created_by: user.id,
       } as any)
       .select(`
