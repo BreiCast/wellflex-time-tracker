@@ -1,18 +1,33 @@
-import { Resend } from 'resend'
-
-// Initialize Resend only if API key is available
-const getResendClient = () => {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    return null
-  }
-  return new Resend(apiKey)
-}
+import nodemailer from 'nodemailer'
 
 const ADMIN_EMAILS = [
   'breider@wellflex.co',
   'breidercastro@icloud.com'
 ]
+
+// Create transporter using environment variables (same SMTP as Supabase)
+const getEmailTransporter = () => {
+  const smtpHost = process.env.SMTP_HOST
+  const smtpPort = process.env.SMTP_PORT
+  const smtpUser = process.env.SMTP_USER
+  const smtpPassword = process.env.SMTP_PASSWORD
+  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || smtpUser
+
+  if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword) {
+    console.warn('[EMAIL] SMTP not configured, skipping email')
+    return null
+  }
+
+  return nodemailer.createTransport({
+    host: smtpHost,
+    port: parseInt(smtpPort),
+    secure: smtpPort === '465', // true for 465, false for other ports
+    auth: {
+      user: smtpUser,
+      pass: smtpPassword,
+    },
+  })
+}
 
 export async function sendRequestNotificationEmail(
   requestType: string,
@@ -30,12 +45,12 @@ export async function sendRequestNotificationEmail(
     userName,
     userEmail,
     teamName,
-    hasApiKey: !!process.env.RESEND_API_KEY
+    hasSmtpConfig: !!(process.env.SMTP_HOST && process.env.SMTP_USER)
   })
   
-  const resend = getResendClient()
-  if (!resend) {
-    console.error('[EMAIL] RESEND_API_KEY not configured, skipping email notification')
+  const transporter = getEmailTransporter()
+  if (!transporter) {
+    console.error('[EMAIL] SMTP not configured, skipping email notification')
     return
   }
 
@@ -150,8 +165,8 @@ Please review this request in the admin panel.
   try {
     // Send to all admin emails
     const emailPromises = ADMIN_EMAILS.map(email =>
-      resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>',
+      transporter.sendMail({
+        from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'Time Tracker <noreply@wellflex.co>',
         to: email,
         subject,
         html: htmlContent,
@@ -163,13 +178,12 @@ Please review this request in the admin panel.
     console.log('[EMAIL] ✅ Notification emails sent successfully', {
       sent: results.length,
       emails: ADMIN_EMAILS,
-      results: results
+      messageIds: results.map((r: any) => r.messageId)
     })
   } catch (error: any) {
     console.error('[EMAIL] ❌ Failed to send request notification email:', {
       error: error?.message || error,
       stack: error?.stack,
-      response: error?.response,
       code: error?.code
     })
     // Don't throw - we don't want email failures to break request creation
@@ -192,12 +206,12 @@ export async function sendRequestConfirmationEmail(
     userName,
     userEmail,
     teamName,
-    hasApiKey: !!process.env.RESEND_API_KEY
+    hasSmtpConfig: !!(process.env.SMTP_HOST && process.env.SMTP_USER)
   })
   
-  const resend = getResendClient()
-  if (!resend) {
-    console.error('[EMAIL] RESEND_API_KEY not configured, skipping confirmation email')
+  const transporter = getEmailTransporter()
+  if (!transporter) {
+    console.error('[EMAIL] SMTP not configured, skipping confirmation email')
     return
   }
 
@@ -321,8 +335,8 @@ If you have any questions, please contact your team administrator.
   `.trim()
 
   try {
-    const result = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'Time Tracker <noreply@wellflex.co>',
+    const result = await transporter.sendMail({
+      from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'Time Tracker <noreply@wellflex.co>',
       to: userEmail,
       subject,
       html: htmlContent,
@@ -330,13 +344,12 @@ If you have any questions, please contact your team administrator.
     })
     console.log('[EMAIL] ✅ Confirmation email sent successfully to requester', {
       email: userEmail,
-      result: result
+      messageId: result.messageId
     })
   } catch (error: any) {
     console.error('[EMAIL] ❌ Failed to send request confirmation email:', {
       error: error?.message || error,
       stack: error?.stack,
-      response: error?.response,
       code: error?.code,
       email: userEmail
     })
