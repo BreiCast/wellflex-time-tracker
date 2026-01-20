@@ -4,6 +4,11 @@ import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { createRequestSchema, reviewRequestSchema } from '@/lib/validations/schemas'
 import { sendRequestNotificationEmail, sendRequestConfirmationEmail } from '@/lib/utils/email'
+import {
+  calculateMinutesFromTimeRange,
+  getAdjustmentTypeFromRequestType,
+  getEffectiveDateFromRequestData,
+} from '@/lib/utils/request-helpers'
 import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
@@ -165,10 +170,10 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { request_id, status, review_notes } = reviewRequestSchema.parse(body)
 
-    // Get request and verify user is manager/admin of team
+    // Get full request data to create adjustment if approved
     const { data: requestData } = await supabase
       .from('requests')
-      .select('id, team_id, status')
+      .select('id, user_id, team_id, status, request_type, requested_data, time_session_id')
       .eq('id', request_id)
       .single()
 
@@ -222,6 +227,66 @@ export async function PATCH(request: NextRequest) {
         { error: error.message },
         { status: 400 }
       )
+    }
+
+    // If approved, automatically create an adjustment from the request data
+    if (status === 'APPROVED' && requestData.requested_data) {
+      const requestedData = requestData.requested_data as any
+      const effectiveDate = getEffectiveDateFromRequestData(requestedData)
+
+      // Only create adjustment if we have time information or it's a time-related request
+      if (effectiveDate && (requestedData.time_from || requestedData.time_to || requestedData.time)) {
+        const minutes = calculateMinutesFromTimeRange(
+          requestedData.time_from || requestedData.time,
+          requestedData.time_to || requestedData.time
+        )
+
+        // If we have a time range, use calculated minutes; otherwise default to 8 hours (480 minutes) for PTO/leave
+        const adjustmentMinutes = minutes !== null 
+          ? minutes 
+          : (requestData.request_type.toUpperCase().includes('PTO') || 
+             requestData.request_type.toUpperCase().includes('LEAVE') ||
+             requestData.request_type.toUpperCase().includes('VACATION') ||
+             requestData.request_type.toUpperCase().includes('MEDICAL'))
+            ? 480 // 8 hours default for leave requests
+            : 0
+
+        // Only create adjustment if we have valid minutes
+        if (adjustmentMinutes > 0 || requestedData.time_from || requestedData.time_to || requestedData.time) {
+          const adjustmentType = getAdjustmentTypeFromRequestType(requestData.request_type)
+
+          const { error: adjustmentError } = await supabase
+            .from('adjustments')
+            .insert({
+              request_id: request_id,
+              user_id: (requestData as any).user_id,
+              team_id: (requestData as any).team_id,
+              time_session_id: (requestData as any).time_session_id || null,
+              adjustment_type: adjustmentType,
+              minutes: adjustmentMinutes,
+              effective_date: effectiveDate,
+              description: `Auto-created from approved ${requestData.request_type} request`,
+              created_by: user.id,
+            } as any)
+
+          if (adjustmentError) {
+            console.error('[REQUESTS] Error creating adjustment:', {
+              error: adjustmentError,
+              requestId: request_id,
+              requestedData,
+            })
+            // Don't fail the request approval if adjustment creation fails
+            // Just log it - admin can create adjustment manually if needed
+          } else {
+            console.log('[REQUESTS] ✅ Auto-created adjustment for approved request:', {
+              requestId: request_id,
+              adjustmentType,
+              minutes: adjustmentMinutes,
+              effectiveDate,
+            })
+          }
+        }
+      }
     }
 
     return NextResponse.json({ request: updatedRequest })
