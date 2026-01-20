@@ -152,13 +152,6 @@ export async function GET(request: NextRequest) {
       breaks = []
     }
 
-    if (breaksError) {
-      return NextResponse.json(
-        { error: breaksError.message },
-        { status: 400 }
-      )
-    }
-
     // Fetch adjustments for all target users - only select needed columns
     const adjustmentsStartTime = Date.now()
     let adjustmentsQuery = supabase
