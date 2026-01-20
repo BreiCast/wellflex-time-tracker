@@ -64,7 +64,7 @@ export async function GET(
       .from('request_comments' as any)
       .select(`
         *,
-        users!request_comments_user_id_fkey(email, full_name)
+        users(id, email, full_name)
       `)
       .eq('request_id', requestId)
       .order('created_at', { ascending: true })

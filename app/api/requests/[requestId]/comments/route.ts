@@ -72,14 +72,24 @@ export async function POST(
       } as any)
       .select(`
         *,
-        users!request_comments_user_id_fkey(email, full_name)
+        users(id, email, full_name)
       `)
       .single()
 
     if (commentError) {
-      console.error('Error creating comment:', commentError)
+      console.error('Error creating comment:', {
+        error: commentError,
+        message: commentError.message,
+        details: commentError.details,
+        hint: commentError.hint,
+        code: commentError.code,
+      })
       return NextResponse.json(
-        { error: 'Failed to add comment', details: commentError.message },
+        { 
+          error: 'Failed to add comment', 
+          details: commentError.message || 'Unknown error',
+          hint: commentError.hint || 'Check if request_comments table exists and RLS policies are correct'
+        },
         { status: 400 }
       )
     }
