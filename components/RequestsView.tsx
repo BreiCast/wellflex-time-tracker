@@ -15,7 +15,9 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   const [showForm, setShowForm] = useState(false)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [userTeams, setUserTeams] = useState<any[]>([])
   const [formData, setFormData] = useState({
+    team_id: teamId || '',
     request_type: '',
     description: '',
     requested_date_from: new Date().toISOString().split('T')[0],
@@ -24,8 +26,34 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     requested_time_to: '',
   })
 
+  const loadUserTeams = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch('/api/teams', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+      const result = await response.json()
+
+      if (response.ok && result.teams) {
+        setUserTeams(result.teams)
+        // Set default team_id if not set and we have teams
+        if (!formData.team_id && result.teams.length > 0) {
+          setFormData(prev => ({ ...prev, team_id: result.teams[0].id }))
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load teams:', error)
+    }
+  }, [])
+
   const loadRequests = useCallback(async () => {
-    if (!teamId) return
+    const selectedTeamId = formData.team_id || teamId
+    if (!selectedTeamId) return
 
     setLoading(true)
     try {
@@ -34,7 +62,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
         .from('requests')
         .select('*')
         .eq('user_id', userId)
-        .eq('team_id', teamId)
+        .eq('team_id', selectedTeamId)
         .order('created_at', { ascending: false })
 
       if (requestData) {
@@ -45,7 +73,11 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     } finally {
       setLoading(false)
     }
-  }, [userId, teamId])
+  }, [userId, teamId, formData.team_id])
+
+  useEffect(() => {
+    loadUserTeams()
+  }, [loadUserTeams])
 
   useEffect(() => {
     loadRequests()
@@ -53,7 +85,11 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!teamId) return
+    const selectedTeamId = formData.team_id || teamId
+    if (!selectedTeamId) {
+      alert('Please select a team/client for this request')
+      return
+    }
 
     try {
       const supabase = createClient()
@@ -68,7 +104,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          team_id: teamId,
+          team_id: selectedTeamId,
           request_type: formData.request_type,
           description: formData.description,
           requested_data: {
@@ -85,6 +121,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
       if (response.ok) {
         setShowForm(false)
         setFormData({ 
+          team_id: selectedTeamId,
           request_type: '', 
           description: '',
           requested_date_from: new Date().toISOString().split('T')[0],
@@ -165,6 +202,29 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
         <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500">
           <h4 className="text-lg font-black text-slate-900 mb-6">Create New Request</h4>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {userTeams.length > 1 && (
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  Team / Client <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.team_id}
+                  onChange={(e) => setFormData({ ...formData, team_id: e.target.value })}
+                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 appearance-none cursor-pointer"
+                >
+                  <option value="">Select a team/client...</option>
+                  {userTeams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1 ml-1">
+                  Select which team/client this request is for
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
