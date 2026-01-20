@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         const userName = userData.full_name || userData.email
         
         console.log('[EMAIL] 📧 Preparing to send emails for request:', {
-          requestType,
+          requestType: request_type,
           userName,
           userEmail: userData.email,
           teamName: teamData.name,
@@ -127,8 +127,8 @@ export async function POST(request: NextRequest) {
       console.error('[EMAIL] ❌ Error in email sending process:', {
         error: err?.message || err,
         stack: err?.stack,
-        requestType,
-        teamId
+        requestType: request_type,
+        teamId: team_id
       })
       // Don't fail the request if email fails
     })
