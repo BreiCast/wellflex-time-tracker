@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { createRequestSchema, reviewRequestSchema } from '@/lib/validations/schemas'
+import { sendRequestNotificationEmail, sendRequestConfirmationEmail } from '@/lib/utils/email'
 import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
@@ -54,6 +55,54 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Send email notifications (don't wait for it to complete)
+    // Fetch user and team details for the emails
+    Promise.all([
+      supabase
+        .from('users')
+        .select('email, full_name')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('teams')
+        .select('name')
+        .eq('id', team_id)
+        .single()
+    ]).then(async ([userResult, teamResult]) => {
+      if (userResult.data && teamResult.data) {
+        const userData = userResult.data as { email: string; full_name: string | null }
+        const teamData = teamResult.data as { name: string }
+        const userName = userData.full_name || userData.email
+        
+        // Send notification to admins
+        await sendRequestNotificationEmail(
+          request_type,
+          userName,
+          userData.email,
+          teamData.name,
+          description,
+          requested_data?.date,
+          requested_data?.time_from,
+          requested_data?.time_to
+        )
+        
+        // Send confirmation to requester
+        await sendRequestConfirmationEmail(
+          request_type,
+          userName,
+          userData.email,
+          teamData.name,
+          description,
+          requested_data?.date,
+          requested_data?.time_from,
+          requested_data?.time_to
+        )
+      }
+    }).catch(err => {
+      console.error('Error sending emails:', err)
+      // Don't fail the request if email fails
+    })
 
     return NextResponse.json({ request: newRequest })
   } catch (error) {
