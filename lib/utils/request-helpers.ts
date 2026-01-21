@@ -98,16 +98,18 @@ export function calculateBreakDurationDifference(
  * Determine adjustment type based on break duration difference
  * @param currentMinutes - Current break duration in minutes
  * @param adjustedMinutes - Desired break duration in minutes
- * @returns Adjustment type: SUBTRACT_TIME if reducing, ADD_TIME if increasing
+ * @returns Adjustment type: ADD_TIME if reducing break (compensate for extra break time), SUBTRACT_TIME if increasing break
  */
 export function getBreakAdjustmentType(
   currentMinutes: number,
   adjustedMinutes: number
 ): 'ADD_TIME' | 'SUBTRACT_TIME' {
   const difference = calculateBreakDurationDifference(currentMinutes, adjustedMinutes)
-  // If difference is positive, we're reducing break time, so subtract from work time
-  // If difference is negative, we're increasing break time, so add to work time
-  return difference > 0 ? 'SUBTRACT_TIME' : 'ADD_TIME'
+  // If difference is positive, we're reducing break time (e.g., 2h → 1h)
+  // The break_segments table still shows the original 2h, so we need to ADD time to work to compensate
+  // If difference is negative, we're increasing break time (e.g., 1h → 2h)
+  // The break_segments table shows less than actual, so we need to SUBTRACT time from work
+  return difference > 0 ? 'ADD_TIME' : 'SUBTRACT_TIME'
 }
 
 /**
