@@ -304,7 +304,7 @@ export async function PATCH(request: NextRequest) {
         const adjustedDuration = requestedData.adjusted_duration_minutes
 
         if (breakSegmentId && typeof currentDuration === 'number' && typeof adjustedDuration === 'number') {
-          // Get the break segment to find its date
+          // Get the break segment
           const { data: breakSegment } = await supabase
             .from('break_segments')
             .select('break_start_at, break_end_at')
@@ -312,39 +312,30 @@ export async function PATCH(request: NextRequest) {
             .single()
 
           if (breakSegment) {
-            const breakDate = new Date((breakSegment as any).break_start_at)
-            const effectiveDate = breakDate.toISOString().split('T')[0]
+            const breakStart = new Date((breakSegment as any).break_start_at)
+            // Calculate new break_end_at based on adjusted duration
+            const newBreakEnd = new Date(breakStart.getTime() + adjustedDuration * 60 * 1000)
 
-            // Calculate the difference
-            const differenceMinutes = Math.abs(calculateBreakDurationDifference(currentDuration, adjustedDuration))
-            const adjustmentType = getBreakAdjustmentType(currentDuration, adjustedDuration)
+            // Directly update the break_segment's break_end_at
+            const { error: updateError } = await supabase
+              .from('break_segments')
+              .update({ break_end_at: newBreakEnd.toISOString() })
+              .eq('id', breakSegmentId)
 
-            const { error: adjustmentError } = await supabase
-              .from('adjustments')
-              .insert({
-                request_id: request_id,
-                user_id: (requestData as any).user_id,
-                team_id: (requestData as any).team_id,
-                time_session_id: (requestData as any).time_session_id || null,
-                adjustment_type: adjustmentType,
-                minutes: differenceMinutes,
-                effective_date: effectiveDate,
-                description: `Break duration adjustment: ${currentDuration} min → ${adjustedDuration} min (${adjustmentType === 'SUBTRACT_TIME' ? '-' : '+'}${differenceMinutes} min)`,
-                created_by: user.id,
-              } as any)
-
-            if (adjustmentError) {
-              console.error('[REQUESTS] Error creating break adjustment:', {
-                error: adjustmentError,
+            if (updateError) {
+              console.error('[REQUESTS] Error updating break segment:', {
+                error: updateError,
                 requestId: request_id,
-                requestedData,
+                breakSegmentId,
+                adjustedDuration,
               })
             } else {
-              console.log('[REQUESTS] ✅ Auto-created break adjustment for approved request:', {
+              console.log('[REQUESTS] ✅ Updated break segment duration:', {
                 requestId: request_id,
-                adjustmentType,
-                minutes: differenceMinutes,
-                effectiveDate,
+                breakSegmentId,
+                currentDuration,
+                adjustedDuration,
+                newBreakEnd: newBreakEnd.toISOString(),
               })
             }
           }
