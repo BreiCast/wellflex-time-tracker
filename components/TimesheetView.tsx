@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatMinutes } from '@/lib/utils/timesheet'
 import CalendarView from './CalendarView'
 import AdjustmentEditModal from './AdjustmentEditModal'
+import BreakAdjustmentModal from './BreakAdjustmentModal'
 
 interface TimesheetViewProps {
   userId?: string
@@ -23,6 +24,8 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   const [viewAllMembers, setViewAllMembers] = useState(false)
   const [selectedAdjustment, setSelectedAdjustment] = useState<any>(null)
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false)
+  const [selectedBreakForAdjustment, setSelectedBreakForAdjustment] = useState<any>(null)
+  const [isBreakAdjustmentModalOpen, setIsBreakAdjustmentModalOpen] = useState(false)
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
   
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -311,8 +314,30 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-slate-500 font-mono">
-                          {entry.breakMinutes > 0 ? formatMinutes(entry.breakMinutes) : '-'}
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm text-slate-500 font-mono">
+                            {entry.breakMinutes > 0 ? formatMinutes(entry.breakMinutes) : '-'}
+                          </div>
+                          {entry.breaks && entry.breaks.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const key = `${entry.date}-${entry.user_id || ''}-breaks`
+                                setExpandedEntries(prev => {
+                                  const newSet = new Set(prev)
+                                  if (newSet.has(key)) {
+                                    newSet.delete(key)
+                                  } else {
+                                    newSet.add(key)
+                                  }
+                                  return newSet
+                                })
+                              }}
+                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                              title={`${entry.breaks.length} break(s)`}
+                            >
+                              {entry.breaks.length} 📋
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -352,6 +377,62 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                         </div>
                       </td>
                     </tr>
+                    {/* Break details row */}
+                    {entry.breaks && entry.breaks.length > 0 && expandedEntries.has(`${entry.date}-${entry.user_id || ''}-breaks`) && (
+                      <tr key={`${entry.date}-${entry.user_id || ''}-breaks`} className="bg-blue-50/50">
+                        <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-4">
+                          <div className="space-y-3">
+                            <p className="text-xs font-black text-blue-700 uppercase tracking-wider mb-2">Break Details</p>
+                            {entry.breaks.map((breakSeg: any) => {
+                              const breakStart = new Date(breakSeg.break_start_at)
+                              const breakEnd = new Date(breakSeg.break_end_at)
+                              const durationMinutes = Math.floor((breakEnd.getTime() - breakStart.getTime()) / (1000 * 60))
+                              return (
+                                <div key={breakSeg.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-blue-200">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3">
+                                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                        breakSeg.break_type === 'LUNCH' 
+                                          ? 'bg-orange-100 text-orange-700' 
+                                          : 'bg-blue-100 text-blue-700'
+                                      }`}>
+                                        {breakSeg.break_type}
+                                      </span>
+                                      <span className="text-sm font-bold text-slate-700">
+                                        {breakStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {breakEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                      <span className="text-sm text-slate-500 font-mono">
+                                        ({Math.floor(durationMinutes / 60)}h {durationMinutes % 60}m)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {(userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'SUPERADMIN' || selectedUserId === currentUser?.id) && (
+                                    <button
+                                      onClick={() => {
+                                        // This will be handled by BreakAdjustmentModal
+                                        setSelectedBreakForAdjustment({
+                                          id: breakSeg.id,
+                                          break_type: breakSeg.break_type,
+                                          break_start_at: breakSeg.break_start_at,
+                                          break_end_at: breakSeg.break_end_at,
+                                          duration_minutes: durationMinutes,
+                                          date: entry.date,
+                                          user_id: entry.user_id || selectedUserId || currentUser?.id || '',
+                                        })
+                                        setIsBreakAdjustmentModalOpen(true)
+                                      }}
+                                      className="px-4 py-2 text-xs font-black bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                    >
+                                      Adjust Break
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {entry.adjustments && entry.adjustments.length > 0 && expandedEntries.has(`${entry.date}-${entry.user_id || ''}`) && (
                       <tr key={`${entry.date}-${entry.user_id || ''}-adjustments`} className="bg-amber-50/50">
                         <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-4">
@@ -426,6 +507,22 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
             loadTimesheet()
             setIsAdjustmentModalOpen(false)
             setSelectedAdjustment(null)
+          }}
+        />
+      )}
+      {selectedBreakForAdjustment && (
+        <BreakAdjustmentModal
+          breakSegment={selectedBreakForAdjustment}
+          teamId={teamId}
+          isOpen={isBreakAdjustmentModalOpen}
+          onClose={() => {
+            setIsBreakAdjustmentModalOpen(false)
+            setSelectedBreakForAdjustment(null)
+          }}
+          onRequestCreated={() => {
+            loadTimesheet()
+            setIsBreakAdjustmentModalOpen(false)
+            setSelectedBreakForAdjustment(null)
           }}
         />
       )}

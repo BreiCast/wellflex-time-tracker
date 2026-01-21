@@ -16,6 +16,8 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [userTeams, setUserTeams] = useState<any[]>([])
+  const [availableBreaks, setAvailableBreaks] = useState<any[]>([])
+  const [loadingBreaks, setLoadingBreaks] = useState(false)
   const [formData, setFormData] = useState({
     team_id: teamId || '',
     request_type: '',
@@ -24,6 +26,11 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     requested_date_to: new Date().toISOString().split('T')[0],
     requested_time_from: '',
     requested_time_to: '',
+    // Break-specific fields
+    break_type: 'BREAK' as 'BREAK' | 'LUNCH',
+    break_segment_id: '',
+    current_duration_minutes: 0,
+    adjusted_duration_minutes: 0,
   })
 
   const loadUserTeams = useCallback(async () => {
@@ -75,6 +82,36 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     }
   }, [userId, teamId, formData.team_id])
 
+  const loadBreaks = useCallback(async (startDate: string, endDate: string) => {
+    const selectedTeamId = formData.team_id || teamId
+    if (!selectedTeamId || !userId) return
+
+    setLoadingBreaks(true)
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(
+        `/api/breaks?user_id=${userId}&team_id=${selectedTeamId}&start_date=${startDate}&end_date=${endDate}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        }
+      )
+
+      const result = await response.json()
+      if (response.ok && result.breaks) {
+        setAvailableBreaks(result.breaks)
+      }
+    } catch (error) {
+      console.error('Failed to load breaks:', error)
+    } finally {
+      setLoadingBreaks(false)
+    }
+  }, [userId, teamId, formData.team_id])
+
   useEffect(() => {
     loadUserTeams()
   }, [loadUserTeams])
@@ -82,6 +119,16 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
   useEffect(() => {
     loadRequests()
   }, [loadRequests])
+
+  // Load breaks when date range changes and request type is break adjustment
+  useEffect(() => {
+    const requestTypeUpper = formData.request_type.toUpperCase()
+    if (requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')) {
+      loadBreaks(formData.requested_date_from, formData.requested_date_to)
+    } else {
+      setAvailableBreaks([])
+    }
+  }, [formData.request_type, formData.requested_date_from, formData.requested_date_to, loadBreaks])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -97,6 +144,35 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
       
       if (!session) return
 
+      const requestTypeUpper = formData.request_type.toUpperCase()
+      const isForgotBreak = requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))
+      const isBreakAdjustment = requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')
+
+      // Build requested_data based on request type
+      let requestedData: any = {}
+      
+      if (isForgotBreak) {
+        requestedData = {
+          date: formData.requested_date_from,
+          time_from: formData.requested_time_from,
+          time_to: formData.requested_time_to,
+          break_type: formData.break_type,
+        }
+      } else if (isBreakAdjustment) {
+        requestedData = {
+          break_segment_id: formData.break_segment_id,
+          current_duration_minutes: formData.current_duration_minutes,
+          adjusted_duration_minutes: formData.adjusted_duration_minutes,
+        }
+      } else {
+        requestedData = {
+          date_from: formData.requested_date_from,
+          date_to: formData.requested_date_to,
+          time_from: formData.requested_time_from || null,
+          time_to: formData.requested_time_to || null,
+        }
+      }
+
       const response = await fetch('/api/requests', {
         method: 'POST',
         headers: {
@@ -107,12 +183,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           team_id: selectedTeamId,
           request_type: formData.request_type,
           description: formData.description,
-          requested_data: {
-            date_from: formData.requested_date_from,
-            date_to: formData.requested_date_to,
-            time_from: formData.requested_time_from || null,
-            time_to: formData.requested_time_to || null,
-          },
+          requested_data: requestedData,
         }),
       })
 
@@ -128,6 +199,10 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           requested_date_to: new Date().toISOString().split('T')[0],
           requested_time_from: '',
           requested_time_to: '',
+          break_type: 'BREAK',
+          break_segment_id: '',
+          current_duration_minutes: 0,
+          adjusted_duration_minutes: 0,
         })
         loadRequests()
       } else {
@@ -241,7 +316,11 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                     <option value="Time Correction">Time Correction</option>
                     <option value="Missing Clock In">Missing Clock In</option>
                     <option value="Missing Clock Out">Missing Clock Out</option>
-                    <option value="Break Adjustment">Break Adjustment</option>
+                    <option value="Break Duration Adjustment">Break Duration Adjustment</option>
+                  </optgroup>
+                  <optgroup label="Break & Lunch">
+                    <option value="Forgot to Log Break">Forgot to Log Break</option>
+                    <option value="Forgot to Log Lunch">Forgot to Log Lunch</option>
                   </optgroup>
                   <optgroup label="Time Off & Leave">
                     <option value="PTO">PTO</option>
@@ -257,59 +336,257 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  From Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.requested_date_from}
-                  onChange={(e) => setFormData({ ...formData, requested_date_from: e.target.value })}
-                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  To Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.requested_date_to}
-                  onChange={(e) => setFormData({ ...formData, requested_date_to: e.target.value })}
-                  min={formData.requested_date_from}
-                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  From Time <span className="text-slate-300 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="time"
-                  value={formData.requested_time_from}
-                  onChange={(e) => setFormData({ ...formData, requested_time_from: e.target.value })}
-                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
-                  placeholder="Leave empty for full day"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                  To Time <span className="text-slate-300 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="time"
-                  value={formData.requested_time_to}
-                  onChange={(e) => setFormData({ ...formData, requested_time_to: e.target.value })}
-                  className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
-                  placeholder="Leave empty for full day"
-                />
-              </div>
-            </div>
+            {/* Conditional fields based on request type */}
+            {(() => {
+              const requestTypeUpper = formData.request_type.toUpperCase()
+              const isForgotBreak = requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))
+              const isBreakAdjustment = requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')
+
+              // Forgot to Log Break/Lunch
+              if (isForgotBreak) {
+                return (
+                  <>
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        Date <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.requested_date_from}
+                        onChange={(e) => setFormData({ ...formData, requested_date_from: e.target.value, requested_date_to: e.target.value })}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          Break Start Time <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={formData.requested_time_from}
+                          onChange={(e) => setFormData({ ...formData, requested_time_from: e.target.value })}
+                          className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          Break End Time <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={formData.requested_time_to}
+                          onChange={(e) => setFormData({ ...formData, requested_time_to: e.target.value })}
+                          className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        Break Type <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={formData.break_type}
+                        onChange={(e) => setFormData({ ...formData, break_type: e.target.value as 'BREAK' | 'LUNCH' })}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 appearance-none cursor-pointer"
+                      >
+                        <option value="BREAK">Break</option>
+                        <option value="LUNCH">Lunch</option>
+                      </select>
+                    </div>
+                  </>
+                )
+              }
+
+              // Break Duration Adjustment
+              if (isBreakAdjustment) {
+                const selectedBreak = availableBreaks.find(b => b.id === formData.break_segment_id)
+                const difference = selectedBreak 
+                  ? Math.abs(formData.current_duration_minutes - formData.adjusted_duration_minutes)
+                  : 0
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          From Date <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.requested_date_from}
+                          onChange={(e) => {
+                            setFormData({ ...formData, requested_date_from: e.target.value })
+                            loadBreaks(e.target.value, formData.requested_date_to)
+                          }}
+                          className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          To Date <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.requested_date_to}
+                          onChange={(e) => {
+                            setFormData({ ...formData, requested_date_to: e.target.value })
+                            loadBreaks(formData.requested_date_from, e.target.value)
+                          }}
+                          min={formData.requested_date_from}
+                          className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        Select Break <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={formData.break_segment_id}
+                        onChange={(e) => {
+                          const breakId = e.target.value
+                          const selected = availableBreaks.find(b => b.id === breakId)
+                          setFormData({
+                            ...formData,
+                            break_segment_id: breakId,
+                            current_duration_minutes: selected?.duration_minutes || 0,
+                            adjusted_duration_minutes: selected?.duration_minutes || 0,
+                          })
+                        }}
+                        disabled={loadingBreaks || availableBreaks.length === 0}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 appearance-none cursor-pointer disabled:opacity-50"
+                      >
+                        <option value="">
+                          {loadingBreaks ? 'Loading breaks...' : availableBreaks.length === 0 ? 'No breaks found in date range' : 'Select a break...'}
+                        </option>
+                        {availableBreaks.map((breakSeg) => (
+                          <option key={breakSeg.id} value={breakSeg.id}>
+                            {breakSeg.break_type} - {new Date(breakSeg.break_start_at).toLocaleDateString()} {new Date(breakSeg.break_start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to {new Date(breakSeg.break_end_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({Math.floor(breakSeg.duration_minutes / 60)}h {breakSeg.duration_minutes % 60}m)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {selectedBreak && (
+                      <>
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+                          <p className="text-sm font-bold text-indigo-900 mb-2">Current Break Duration:</p>
+                          <p className="text-lg font-black text-indigo-700">
+                            {Math.floor(formData.current_duration_minutes / 60)}h {formData.current_duration_minutes % 60}m
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                            Adjusted Duration (hours:minutes) <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="grid grid-cols-2 gap-4">
+                            <input
+                              type="number"
+                              min="0"
+                              max="23"
+                              placeholder="Hours"
+                              value={Math.floor(formData.adjusted_duration_minutes / 60)}
+                              onChange={(e) => {
+                                const hours = parseInt(e.target.value) || 0
+                                const minutes = formData.adjusted_duration_minutes % 60
+                                setFormData({ ...formData, adjusted_duration_minutes: hours * 60 + minutes })
+                              }}
+                              className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              max="59"
+                              placeholder="Minutes"
+                              value={formData.adjusted_duration_minutes % 60}
+                              onChange={(e) => {
+                                const minutes = parseInt(e.target.value) || 0
+                                const hours = Math.floor(formData.adjusted_duration_minutes / 60)
+                                setFormData({ ...formData, adjusted_duration_minutes: hours * 60 + minutes })
+                              }}
+                              className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                            />
+                          </div>
+                        </div>
+                        {difference > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                            <p className="text-sm font-bold text-amber-900">
+                              Adjustment: {formData.current_duration_minutes > formData.adjusted_duration_minutes ? '-' : '+'}{Math.floor(difference / 60)}h {difference % 60}m
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                )
+              }
+
+              // Default fields for other request types
+              return (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        From Date
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.requested_date_from}
+                        onChange={(e) => setFormData({ ...formData, requested_date_from: e.target.value })}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        To Date
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.requested_date_to}
+                        onChange={(e) => setFormData({ ...formData, requested_date_to: e.target.value })}
+                        min={formData.requested_date_from}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        From Time <span className="text-slate-300 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.requested_time_from}
+                        onChange={(e) => setFormData({ ...formData, requested_time_from: e.target.value })}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        placeholder="Leave empty for full day"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        To Time <span className="text-slate-300 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.requested_time_to}
+                        onChange={(e) => setFormData({ ...formData, requested_time_to: e.target.value })}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        placeholder="Leave empty for full day"
+                      />
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
             <div>
               <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
                 Description

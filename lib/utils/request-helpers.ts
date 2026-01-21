@@ -71,8 +71,43 @@ export function getAdjustmentTypeFromRequestType(
     return 'ADD_TIME'
   }
 
+  // Break adjustment requests
+  if (upperType.includes('BREAK') && upperType.includes('ADJUSTMENT')) {
+    // This will be determined by calculateBreakDurationDifference
+    return 'SUBTRACT_TIME' // Default, but actual type depends on difference
+  }
+
   // Default to ADD_TIME for most request types
   return 'ADD_TIME'
+}
+
+/**
+ * Calculate the difference in minutes between current and adjusted break duration
+ * @param currentMinutes - Current break duration in minutes
+ * @param adjustedMinutes - Desired break duration in minutes
+ * @returns Difference in minutes (positive = subtract, negative = add)
+ */
+export function calculateBreakDurationDifference(
+  currentMinutes: number,
+  adjustedMinutes: number
+): number {
+  return currentMinutes - adjustedMinutes
+}
+
+/**
+ * Determine adjustment type based on break duration difference
+ * @param currentMinutes - Current break duration in minutes
+ * @param adjustedMinutes - Desired break duration in minutes
+ * @returns Adjustment type: SUBTRACT_TIME if reducing, ADD_TIME if increasing
+ */
+export function getBreakAdjustmentType(
+  currentMinutes: number,
+  adjustedMinutes: number
+): 'ADD_TIME' | 'SUBTRACT_TIME' {
+  const difference = calculateBreakDurationDifference(currentMinutes, adjustedMinutes)
+  // If difference is positive, we're reducing break time, so subtract from work time
+  // If difference is negative, we're increasing break time, so add to work time
+  return difference > 0 ? 'SUBTRACT_TIME' : 'ADD_TIME'
 }
 
 /**
