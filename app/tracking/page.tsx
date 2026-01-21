@@ -131,7 +131,7 @@ export default function TrackingPage() {
     }
   }, [user])
 
-  const loadSchedules = useCallback(async () => {
+  const loadSchedules = useCallback(async (now = new Date()) => {
     if (!user) return
 
     const supabase = createClient()
@@ -183,7 +183,7 @@ export default function TrackingPage() {
       if (todaySessions) {
         todaySessions.forEach((session: any) => {
           const clockIn = new Date(session.clock_in_at)
-          const clockOut = session.clock_out_at ? new Date(session.clock_out_at) : currentTime
+          const clockOut = session.clock_out_at ? new Date(session.clock_out_at) : now
           const minutes = Math.floor((clockOut.getTime() - clockIn.getTime()) / (1000 * 60))
           workedByTeam[session.team_id] = (workedByTeam[session.team_id] || 0) + minutes
         })
@@ -199,9 +199,9 @@ export default function TrackingPage() {
       })
       setTeamProgress(progress)
     }
-  }, [user, currentTime, teams])
+  }, [user, teams])
 
-  const loadTodayStats = useCallback(async () => {
+  const loadTodayStats = useCallback(async (now = new Date()) => {
     if (!user) return
 
     const supabase = createClient()
@@ -231,7 +231,7 @@ export default function TrackingPage() {
           totalSeconds += Math.floor((clockOut.getTime() - clockIn.getTime()) / 1000)
         } else if (activeSession && session.id === activeSession.id) {
           const clockIn = new Date(session.clock_in_at)
-          totalSeconds += Math.floor((currentTime.getTime() - clockIn.getTime()) / 1000)
+          totalSeconds += Math.floor((now.getTime() - clockIn.getTime()) / 1000)
         }
 
         if (session.break_segments) {
@@ -242,7 +242,7 @@ export default function TrackingPage() {
               breakSeconds += Math.floor((breakEnd.getTime() - breakStart.getTime()) / 1000)
             } else if (activeBreak && breakSeg.id === activeBreak.id) {
               const breakStart = new Date(breakSeg.break_start_at)
-              breakSeconds += Math.floor((currentTime.getTime() - breakStart.getTime()) / 1000)
+              breakSeconds += Math.floor((now.getTime() - breakStart.getTime()) / 1000)
             }
           })
         }
@@ -258,7 +258,7 @@ export default function TrackingPage() {
         workSeconds: totalSeconds - breakSeconds,
       })
     }
-  }, [user, currentTime, activeSession, activeBreak])
+  }, [user, activeSession, activeBreak])
 
   const loadRecentSessions = useCallback(async () => {
     if (!user) return
@@ -297,11 +297,23 @@ export default function TrackingPage() {
   useEffect(() => {
     if (user) {
       loadActiveSession()
-      loadTodayStats()
       loadRecentSessions()
-      loadSchedules()
     }
-  }, [user, loadActiveSession, loadTodayStats, loadRecentSessions, loadSchedules])
+  }, [user, loadActiveSession, loadRecentSessions])
+
+  useEffect(() => {
+    if (!user) return
+
+    const refreshStats = () => {
+      const now = new Date()
+      loadTodayStats(now)
+      loadSchedules(now)
+    }
+
+    refreshStats()
+    const interval = setInterval(refreshStats, 60000)
+    return () => clearInterval(interval)
+  }, [user, loadTodayStats, loadSchedules])
 
   const handleClockIn = async () => {
     if (!selectedTeam) {
