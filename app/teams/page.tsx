@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DashboardNav from '@/components/DashboardNav'
@@ -105,7 +105,7 @@ export default function TeamsPage() {
     loadData()
   }, [router, loadTeams])
 
-  const handleCreateTeam = async (e: React.FormEvent) => {
+  const handleCreateTeam = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
@@ -428,7 +428,7 @@ export default function TeamsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {teams.map((team) => (
-                    <React.Fragment key={team.id}>
+                    <Fragment key={team.id}>
                       <tr className="group hover:bg-slate-50/80 transition-all duration-200">
                         <td className="px-10 py-8 whitespace-nowrap">
                           {editingTeam && editingTeam.id === team.id ? (
@@ -624,7 +624,7 @@ export default function TeamsPage() {
                           </td>
                         </tr>
                       )}
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

@@ -56,7 +56,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     } catch (error) {
       console.error('Failed to load teams:', error)
     }
-  }, [])
+  }, [formData.team_id])
 
   const loadRequests = useCallback(async () => {
     const selectedTeamId = formData.team_id || teamId
