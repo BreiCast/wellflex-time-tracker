@@ -16,6 +16,7 @@ function ResetPasswordContent() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [tokenVerified, setTokenVerified] = useState(false)
 
   useEffect(() => {
     // Check if we have the required tokens in the URL
@@ -26,7 +27,44 @@ function ResetPasswordContent() {
     // Accept either token_hash (OTP flow) or token (PKCE/magic link flow)
     if (!token_hash && !token) {
       setError('Invalid or missing reset token. Please request a new password reset.')
+      return
     }
+
+    // If we have a token, verify it on mount (this will log the user in, but we'll handle that)
+    // We verify early so the token is valid, but we still show the form
+    const verifyToken = async () => {
+      try {
+        const supabase = createClient()
+        
+        if (type === 'recovery' && token_hash) {
+          // Verify the OTP token (this will create a session)
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token_hash,
+          })
+
+          if (verifyError) {
+            setError('This password reset link is invalid or has expired. Please request a new one.')
+            return
+          }
+        } else if (token) {
+          // Exchange code for session (PKCE/magic link flow)
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(token)
+          if (exchangeError) {
+            setError('This password reset link is invalid or has expired. Please request a new one.')
+            return
+          }
+        }
+
+        // Token is valid - mark as verified and show the form
+        // User is now authenticated, but we'll keep them on this page
+        setTokenVerified(true)
+      } catch (err: any) {
+        setError('This password reset link is invalid or has expired. Please request a new one.')
+      }
+    }
+
+    verifyToken()
   }, [searchParams])
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -44,36 +82,24 @@ function ResetPasswordContent() {
       return
     }
 
+    // Check if token was already verified
+    if (!tokenVerified) {
+      setError('Please wait for the reset link to be verified.')
+      return
+    }
+
     setLoading(true)
 
     try {
       const supabase = createClient()
-      const token_hash = searchParams.get('token_hash')
-      const token = searchParams.get('token')
-      const type = searchParams.get('type')
 
-      // Handle different token formats from Supabase
-      if (type === 'recovery' && token_hash) {
-        // Verify the OTP token first
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          type: 'recovery',
-          token_hash,
-        })
-
-        if (verifyError) {
-          throw verifyError
-        }
-      } else if (token) {
-        // Alternative flow: exchange code for session (PKCE/magic link)
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(token)
-        if (exchangeError) {
-          throw exchangeError
-        }
-      } else {
-        throw new Error('Invalid or missing reset token')
+      // Token should already be verified from useEffect, but check session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Session expired. Please request a new password reset link.')
       }
 
-      // Update the password (user should now be authenticated)
+      // Update the password (user is authenticated from token verification)
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
       })
@@ -81,6 +107,10 @@ function ResetPasswordContent() {
       if (updateError) {
         throw updateError
       }
+
+      // Sign out the user after password update
+      // This ensures they must log in with the new password
+      await supabase.auth.signOut()
 
       setSuccess(true)
       setTimeout(() => {
@@ -94,6 +124,8 @@ function ResetPasswordContent() {
         errorMessage = 'This password reset link is invalid or has expired. Please request a new one.'
       } else if (errorMessage.includes('same password')) {
         errorMessage = 'New password must be different from your current password.'
+      } else if (errorMessage.includes('Session expired')) {
+        errorMessage = 'Your session has expired. Please request a new password reset link.'
       }
       
       setError(errorMessage)
@@ -107,7 +139,7 @@ function ResetPasswordContent() {
   const type = searchParams.get('type')
 
   // Show error if we don't have any valid token
-  if (!token_hash && !token) {
+  if (!token_hash && !token && !tokenVerified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4">
         <div className="max-w-md w-full">
@@ -210,6 +242,14 @@ function ResetPasswordContent() {
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleResetPassword}>
+            {!tokenVerified && !error && (token_hash || token) && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-700 px-4 py-3 rounded-xl flex items-center animate-in fade-in slide-in-from-top-2 duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 flex-shrink-0 animate-spin" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-bold">Verifying reset link...</span>
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-xl flex items-center animate-in fade-in slide-in-from-top-2 duration-300">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -255,10 +295,10 @@ function ResetPasswordContent() {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !tokenVerified}
                 className="w-full flex justify-center py-4 px-6 bg-indigo-600 text-white text-lg font-black rounded-2xl hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform active:scale-95 shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:grayscale"
               >
-                {loading ? 'RESETTING...' : 'RESET PASSWORD'}
+                {loading ? 'RESETTING...' : !tokenVerified ? 'VERIFYING LINK...' : 'RESET PASSWORD'}
               </button>
             </div>
             <div className="text-center">
