@@ -8,6 +8,8 @@ import {
   calculateMinutesFromTimeRange,
   getAdjustmentTypeFromRequestType,
   getEffectiveDateFromRequestData,
+  calculateBreakDurationDifference,
+  getBreakAdjustmentType,
 } from '@/lib/utils/request-helpers'
 import { z } from 'zod'
 
@@ -229,61 +231,180 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // If approved, automatically create an adjustment from the request data
+    // If approved, handle break-specific requests or create adjustment from the request data
     if (status === 'APPROVED' && requestData.requested_data) {
       const requestedData = requestData.requested_data as any
-      const effectiveDate = getEffectiveDateFromRequestData(requestedData)
+      const requestTypeUpper = requestData.request_type.toUpperCase()
 
-      // Only create adjustment if we have time information or it's a time-related request
-      if (effectiveDate && (requestedData.time_from || requestedData.time_to || requestedData.time)) {
-        const minutes = calculateMinutesFromTimeRange(
-          requestedData.time_from || requestedData.time,
-          requestedData.time_to || requestedData.time
-        )
+      // Handle "Forgot to Log Break" or "Forgot to Log Lunch"
+      if (requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))) {
+        const breakDate = requestedData.date || requestedData.date_from
+        const timeFrom = requestedData.time_from
+        const timeTo = requestedData.time_to
+        const breakType = requestedData.break_type || (requestTypeUpper.includes('LUNCH') ? 'LUNCH' : 'BREAK')
 
-        // If we have a time range, use calculated minutes; otherwise default to 8 hours (480 minutes) for PTO/leave
-        const adjustmentMinutes = minutes !== null 
-          ? minutes 
-          : (requestData.request_type.toUpperCase().includes('PTO') || 
-             requestData.request_type.toUpperCase().includes('LEAVE') ||
-             requestData.request_type.toUpperCase().includes('VACATION') ||
-             requestData.request_type.toUpperCase().includes('MEDICAL'))
-            ? 480 // 8 hours default for leave requests
-            : 0
+        if (breakDate && timeFrom && timeTo) {
+          // Find the time_session for this date
+          const dateStart = new Date(breakDate)
+          dateStart.setHours(0, 0, 0, 0)
+          const dateEnd = new Date(breakDate)
+          dateEnd.setHours(23, 59, 59, 999)
 
-        // Only create adjustment if we have valid minutes
-        if (adjustmentMinutes > 0 || requestedData.time_from || requestedData.time_to || requestedData.time) {
-          const adjustmentType = getAdjustmentTypeFromRequestType(requestData.request_type)
+          const { data: sessions } = await supabase
+            .from('time_sessions')
+            .select('id')
+            .eq('user_id', (requestData as any).user_id)
+            .eq('team_id', (requestData as any).team_id)
+            .gte('clock_in_at', dateStart.toISOString())
+            .lte('clock_in_at', dateEnd.toISOString())
+            .order('clock_in_at', { ascending: false })
+            .limit(1)
 
-          const { error: adjustmentError } = await supabase
-            .from('adjustments')
-            .insert({
-              request_id: request_id,
-              user_id: (requestData as any).user_id,
-              team_id: (requestData as any).team_id,
-              time_session_id: (requestData as any).time_session_id || null,
-              adjustment_type: adjustmentType,
-              minutes: adjustmentMinutes,
-              effective_date: effectiveDate,
-              description: `Auto-created from approved ${requestData.request_type} request`,
-              created_by: user.id,
-            } as any)
+          if (sessions && sessions.length > 0) {
+            const sessionId = (sessions[0] as { id: string }).id
 
-          if (adjustmentError) {
-            console.error('[REQUESTS] Error creating adjustment:', {
-              error: adjustmentError,
-              requestId: request_id,
-              requestedData,
-            })
-            // Don't fail the request approval if adjustment creation fails
-            // Just log it - admin can create adjustment manually if needed
+            // Combine date and time to create full timestamps
+            const breakStartStr = `${breakDate}T${timeFrom}:00`
+            const breakEndStr = `${breakDate}T${timeTo}:00`
+
+            // Create the break segment
+            const { error: breakError } = await supabase
+              .from('break_segments')
+              .insert({
+                time_session_id: sessionId,
+                break_type: breakType,
+                break_start_at: new Date(breakStartStr).toISOString(),
+                break_end_at: new Date(breakEndStr).toISOString(),
+                created_by: (requestData as any).user_id,
+              } as any)
+
+            if (breakError) {
+              console.error('[REQUESTS] Error creating break segment:', {
+                error: breakError,
+                requestId: request_id,
+                requestedData,
+              })
+            } else {
+              console.log('[REQUESTS] ✅ Auto-created break segment for approved request:', {
+                requestId: request_id,
+                breakType,
+                breakStart: breakStartStr,
+                breakEnd: breakEndStr,
+              })
+            }
           } else {
-            console.log('[REQUESTS] ✅ Auto-created adjustment for approved request:', {
-              requestId: request_id,
-              adjustmentType,
-              minutes: adjustmentMinutes,
-              effectiveDate,
-            })
+            console.error('[REQUESTS] No time session found for break date:', breakDate)
+          }
+        }
+      }
+      // Handle "Break Duration Adjustment"
+      else if (requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')) {
+        const breakSegmentId = requestedData.break_segment_id
+        const currentDuration = requestedData.current_duration_minutes
+        const adjustedDuration = requestedData.adjusted_duration_minutes
+
+        if (breakSegmentId && typeof currentDuration === 'number' && typeof adjustedDuration === 'number') {
+          // Get the break segment to find its date
+          const { data: breakSegment } = await supabase
+            .from('break_segments')
+            .select('break_start_at, break_end_at')
+            .eq('id', breakSegmentId)
+            .single()
+
+          if (breakSegment) {
+            const breakDate = new Date((breakSegment as any).break_start_at)
+            const effectiveDate = breakDate.toISOString().split('T')[0]
+
+            // Calculate the difference
+            const differenceMinutes = Math.abs(calculateBreakDurationDifference(currentDuration, adjustedDuration))
+            const adjustmentType = getBreakAdjustmentType(currentDuration, adjustedDuration)
+
+            const { error: adjustmentError } = await supabase
+              .from('adjustments')
+              .insert({
+                request_id: request_id,
+                user_id: (requestData as any).user_id,
+                team_id: (requestData as any).team_id,
+                time_session_id: (requestData as any).time_session_id || null,
+                adjustment_type: adjustmentType,
+                minutes: differenceMinutes,
+                effective_date: effectiveDate,
+                description: `Break duration adjustment: ${currentDuration} min → ${adjustedDuration} min (${adjustmentType === 'SUBTRACT_TIME' ? '-' : '+'}${differenceMinutes} min)`,
+                created_by: user.id,
+              } as any)
+
+            if (adjustmentError) {
+              console.error('[REQUESTS] Error creating break adjustment:', {
+                error: adjustmentError,
+                requestId: request_id,
+                requestedData,
+              })
+            } else {
+              console.log('[REQUESTS] ✅ Auto-created break adjustment for approved request:', {
+                requestId: request_id,
+                adjustmentType,
+                minutes: differenceMinutes,
+                effectiveDate,
+              })
+            }
+          }
+        }
+      }
+      // Handle other request types (existing logic)
+      else {
+        const effectiveDate = getEffectiveDateFromRequestData(requestedData)
+
+        // Only create adjustment if we have time information or it's a time-related request
+        if (effectiveDate && (requestedData.time_from || requestedData.time_to || requestedData.time)) {
+          const minutes = calculateMinutesFromTimeRange(
+            requestedData.time_from || requestedData.time,
+            requestedData.time_to || requestedData.time
+          )
+
+          // If we have a time range, use calculated minutes; otherwise default to 8 hours (480 minutes) for PTO/leave
+          const adjustmentMinutes = minutes !== null 
+            ? minutes 
+            : (requestData.request_type.toUpperCase().includes('PTO') || 
+               requestData.request_type.toUpperCase().includes('LEAVE') ||
+               requestData.request_type.toUpperCase().includes('VACATION') ||
+               requestData.request_type.toUpperCase().includes('MEDICAL'))
+              ? 480 // 8 hours default for leave requests
+              : 0
+
+          // Only create adjustment if we have valid minutes
+          if (adjustmentMinutes > 0 || requestedData.time_from || requestedData.time_to || requestedData.time) {
+            const adjustmentType = getAdjustmentTypeFromRequestType(requestData.request_type)
+
+            const { error: adjustmentError } = await supabase
+              .from('adjustments')
+              .insert({
+                request_id: request_id,
+                user_id: (requestData as any).user_id,
+                team_id: (requestData as any).team_id,
+                time_session_id: (requestData as any).time_session_id || null,
+                adjustment_type: adjustmentType,
+                minutes: adjustmentMinutes,
+                effective_date: effectiveDate,
+                description: `Auto-created from approved ${requestData.request_type} request`,
+                created_by: user.id,
+              } as any)
+
+            if (adjustmentError) {
+              console.error('[REQUESTS] Error creating adjustment:', {
+                error: adjustmentError,
+                requestId: request_id,
+                requestedData,
+              })
+              // Don't fail the request approval if adjustment creation fails
+              // Just log it - admin can create adjustment manually if needed
+            } else {
+              console.log('[REQUESTS] ✅ Auto-created adjustment for approved request:', {
+                requestId: request_id,
+                adjustmentType,
+                minutes: adjustmentMinutes,
+                effectiveDate,
+              })
+            }
           }
         }
       }

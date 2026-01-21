@@ -4,6 +4,8 @@ import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 const updateAdjustmentSchema = z.object({
   adjustment_type: z.enum(['ADD_TIME', 'SUBTRACT_TIME', 'OVERRIDE']).optional(),
   minutes: z.number().int().optional(),

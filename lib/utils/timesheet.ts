@@ -13,6 +13,9 @@ export interface TimesheetEntry {
   workMinutes: number
   adjustments: Adjustment[]
   adjustedMinutes: number
+  breaks: BreakSegment[] // Individual break segments for this date
+  user_id?: string
+  user_name?: string
 }
 
 export function calculateTimesheet(
@@ -37,6 +40,7 @@ export function calculateTimesheet(
       workMinutes: 0,
       adjustments: [],
       adjustedMinutes: 0,
+      breaks: [],
     })
     currentDate.setDate(currentDate.getDate() + 1)
   }
@@ -81,6 +85,7 @@ export function calculateTimesheet(
         (breakEnd.getTime() - breakStart.getTime()) / (1000 * 60)
       )
       entry.breakMinutes += breakMinutes
+      entry.breaks.push(breakSegment) // Store individual break segment
     }
   }
 

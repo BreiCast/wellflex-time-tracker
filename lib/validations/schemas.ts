@@ -28,6 +28,34 @@ export const createRequestSchema = z.object({
   request_type: z.string().min(1),
   description: z.string().min(1),
   requested_data: z.record(z.any()).optional(),
+}).refine((data) => {
+  // Validate break-specific requested_data
+  const requestType = data.request_type.toUpperCase()
+  const requestedData = data.requested_data || {}
+  
+  // For "Forgot to Log Break" or "Forgot to Log Lunch"
+  if (requestType.includes('FORGOT') && (requestType.includes('BREAK') || requestType.includes('LUNCH'))) {
+    return (
+      requestedData.date &&
+      requestedData.time_from &&
+      requestedData.time_to &&
+      (requestedData.break_type === 'BREAK' || requestedData.break_type === 'LUNCH')
+    )
+  }
+  
+  // For "Break Duration Adjustment" or "Break Adjustment"
+  if (requestType.includes('BREAK') && requestType.includes('ADJUSTMENT')) {
+    return (
+      requestedData.break_segment_id &&
+      typeof requestedData.current_duration_minutes === 'number' &&
+      typeof requestedData.adjusted_duration_minutes === 'number'
+    )
+  }
+  
+  // For other request types, requested_data is optional
+  return true
+}, {
+  message: 'Invalid requested_data for this request type. For break requests, ensure date, time_from, time_to, and break_type are provided. For break adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided.',
 })
 
 export const reviewRequestSchema = z.object({
