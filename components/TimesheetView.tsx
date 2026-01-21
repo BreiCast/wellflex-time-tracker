@@ -131,6 +131,20 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     }
   }, [selectedUserId, teamId, dateRange, loadTimesheet])
 
+  // Listen for request approval events to refresh timesheet
+  useEffect(() => {
+    const handleRequestApproved = () => {
+      if (teamId && teamId !== '' && selectedUserId) {
+        loadTimesheet()
+      }
+    }
+
+    window.addEventListener('requestApproved', handleRequestApproved)
+    return () => {
+      window.removeEventListener('requestApproved', handleRequestApproved)
+    }
+  }, [teamId, selectedUserId, loadTimesheet])
+
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
   }

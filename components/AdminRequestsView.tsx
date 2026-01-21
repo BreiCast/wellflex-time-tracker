@@ -107,6 +107,13 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
         setIsModalOpen(false)
         setSelectedRequestId(null)
         setExpandedRequestId(null)
+        
+        // Dispatch event to refresh timesheet if request was approved
+        if (status === 'APPROVED') {
+          window.dispatchEvent(new CustomEvent('requestApproved', { 
+            detail: { requestId, status } 
+          }))
+        }
       } else {
         alert(result.error || 'Failed to review request')
       }
