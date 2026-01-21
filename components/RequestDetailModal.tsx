@@ -214,6 +214,88 @@ export default function RequestDetailModal({
                     {request.request_type}
                   </h3>
                   
+                  {/* Break Duration Adjustment Details */}
+                  {request.request_type.toUpperCase().includes('BREAK') && request.request_type.toUpperCase().includes('ADJUSTMENT') && request.requested_data && typeof request.requested_data === 'object' && request.requested_data.break_segment_id && (
+                    <div className="mb-4 p-4 bg-blue-50/50 border border-blue-200 rounded-2xl">
+                      <p className="text-xs font-black uppercase tracking-widest text-blue-700 mb-3 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Break Adjustment Details
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Current Duration</p>
+                          <p className="text-lg font-black text-slate-900">
+                            {request.requested_data.current_duration_minutes 
+                              ? `${Math.floor(request.requested_data.current_duration_minutes / 60)}h ${request.requested_data.current_duration_minutes % 60}m`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Adjusted Duration</p>
+                          <p className="text-lg font-black text-indigo-600">
+                            {request.requested_data.adjusted_duration_minutes 
+                              ? `${Math.floor(request.requested_data.adjusted_duration_minutes / 60)}h ${request.requested_data.adjusted_duration_minutes % 60}m`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Adjustment</p>
+                          <p className={`text-lg font-black ${
+                            (request.requested_data.current_duration_minutes || 0) > (request.requested_data.adjusted_duration_minutes || 0)
+                              ? 'text-amber-600'
+                              : 'text-emerald-600'
+                          }`}>
+                            {request.requested_data.current_duration_minutes && request.requested_data.adjusted_duration_minutes
+                              ? (() => {
+                                  const diff = Math.abs(request.requested_data.current_duration_minutes - request.requested_data.adjusted_duration_minutes)
+                                  const sign = request.requested_data.current_duration_minutes > request.requested_data.adjusted_duration_minutes ? '-' : '+'
+                                  return `${sign}${Math.floor(diff / 60)}h ${diff % 60}m`
+                                })()
+                              : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Forgot to Log Break Details */}
+                  {request.request_type.toUpperCase().includes('FORGOT') && (request.request_type.toUpperCase().includes('BREAK') || request.request_type.toUpperCase().includes('LUNCH')) && request.requested_data && typeof request.requested_data === 'object' && request.requested_data.date && (
+                    <div className="mb-4 p-4 bg-indigo-50/50 border border-indigo-200 rounded-2xl">
+                      <p className="text-xs font-black uppercase tracking-widest text-indigo-700 mb-3 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Break Details
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Date</p>
+                          <p className="text-sm font-bold text-slate-700">
+                            {request.requested_data.date 
+                              ? new Date(request.requested_data.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Time</p>
+                          <p className="text-sm font-bold text-slate-700">
+                            {request.requested_data.time_from && request.requested_data.time_to
+                              ? `${request.requested_data.time_from} - ${request.requested_data.time_to}`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Break Type</p>
+                          <p className="text-sm font-bold text-slate-700">
+                            {request.requested_data.break_type || 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {request.requested_data && (typeof request.requested_data === 'object') && (request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date || request.requested_data.time_from || request.requested_data.time_to || request.requested_data.time) && (
                     <div className="flex flex-wrap items-center gap-3 mb-4">
                       {(request.requested_data.date_from || request.requested_data.date_to || request.requested_data.date) && (
