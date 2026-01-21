@@ -12,14 +12,14 @@ BEGIN
            IS DISTINCT FROM 
            (NEW.id, NEW.time_session_id, NEW.break_type, NEW.break_start_at, NEW.created_at, NEW.created_by) THEN
             RAISE EXCEPTION 'break_segments table is append-only. Only break_end_at can be updated.';
-        END IF
+        END IF;
         -- Allow updating break_end_at (whether it was NULL or had a value)
         IF OLD.break_end_at IS DISTINCT FROM NEW.break_end_at THEN
             RETURN NEW;
-        END IF
+        END IF;
         -- If nothing changed, allow it (no-op update)
         RETURN NEW;
-    END IF
+    END IF;
     RAISE EXCEPTION 'break_segments table is append-only. Use requests and adjustments for corrections.';
 END;
 $$ LANGUAGE plpgsql;
