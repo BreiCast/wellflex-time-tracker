@@ -14,6 +14,7 @@ export interface TimesheetEntry {
   adjustments: Adjustment[]
   adjustedMinutes: number
   breaks: BreakSegment[] // Individual break segments for this date
+  notes: Array<{ id: string; content: string; created_at: string; created_by: string; time_session_id: string }> // Notes for this date
   user_id?: string
   user_name?: string
 }
@@ -21,6 +22,7 @@ export interface TimesheetEntry {
 export function calculateTimesheet(
   sessions: TimeSession[],
   breaks: BreakSegment[],
+  notes: Array<{ id: string; content: string; created_at: string; created_by: string; time_session_id: string }>,
   adjustments: Adjustment[],
   startDate: Date,
   endDate: Date
@@ -41,6 +43,7 @@ export function calculateTimesheet(
       adjustments: [],
       adjustedMinutes: 0,
       breaks: [],
+      notes: [],
     })
     currentDate.setDate(currentDate.getDate() + 1)
   }
@@ -86,6 +89,21 @@ export function calculateTimesheet(
       )
       entry.breakMinutes += breakMinutes
       entry.breaks.push(breakSegment) // Store individual break segment
+    }
+  }
+
+  // Process notes - associate with date based on session clock-in time
+  for (const note of notes) {
+    // Find the session for this note
+    const session = sessions.find(s => s.id === note.time_session_id)
+    if (session) {
+      const sessionDate = new Date(session.clock_in_at)
+      const dateKey = sessionDate.toISOString().split('T')[0]
+      
+      if (entries.has(dateKey)) {
+        const entry = entries.get(dateKey)!
+        entry.notes.push(note)
+      }
     }
   }
 

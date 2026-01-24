@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const clockInSchema = z.object({
   team_id: z.string().uuid(),
+  late_note: z.string().min(1).optional(), // Required when clocking in late
 })
 
 export const clockOutSchema = z.object({

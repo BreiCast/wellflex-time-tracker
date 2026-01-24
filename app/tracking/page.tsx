@@ -7,6 +7,7 @@ import DashboardNav from '@/components/DashboardNav'
 import TeamSelector from '@/components/TeamSelector'
 import TeamSwitcher from '@/components/TeamSwitcher'
 import TeamProgressBar from '@/components/TeamProgressBar'
+import LateClockInModal from '@/components/LateClockInModal'
 
 interface TimeSession {
   id: string
@@ -47,6 +48,8 @@ export default function TrackingPage() {
     workSeconds: 0,
   })
   const [recentSessions, setRecentSessions] = useState<any[]>([])
+  const [isLateModalOpen, setIsLateModalOpen] = useState(false)
+  const [scheduledStartTime, setScheduledStartTime] = useState<string | null>(null)
 
   // Update current time every second for live timer
   useEffect(() => {
@@ -315,6 +318,45 @@ export default function TrackingPage() {
     return () => clearInterval(interval)
   }, [user, loadTodayStats, loadSchedules])
 
+  const checkIfLate = async (): Promise<{ isLate: boolean; scheduledStart: Date | null }> => {
+    if (!selectedTeam || !user) {
+      return { isLate: false, scheduledStart: null }
+    }
+
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return { isLate: false, scheduledStart: null }
+
+      const now = new Date()
+      const dayOfWeek = now.getDay()
+
+      const { data: schedule } = await supabase
+        .from('schedules')
+        .select('start_time')
+        .eq('user_id', user.id)
+        .eq('team_id', selectedTeam)
+        .eq('day_of_week', dayOfWeek)
+        .eq('is_active', true)
+        .single()
+
+      if (!schedule) {
+        return { isLate: false, scheduledStart: null }
+      }
+
+      const [startHour, startMin] = schedule.start_time.split(':').map(Number)
+      const scheduledStart = new Date(now)
+      scheduledStart.setHours(startHour, startMin, 0, 0)
+
+      const isLate = now > scheduledStart
+
+      return { isLate, scheduledStart }
+    } catch (err) {
+      console.error('Error checking if late:', err)
+      return { isLate: false, scheduledStart: null }
+    }
+  }
+
   const handleClockIn = async () => {
     if (!selectedTeam) {
       setError('Please select a team')
@@ -325,6 +367,18 @@ export default function TrackingPage() {
     setError('')
 
     try {
+      // Check if user is late
+      const { isLate, scheduledStart } = await checkIfLate()
+
+      if (isLate && scheduledStart) {
+        // Show modal for late clock-in
+        setScheduledStartTime(scheduledStart.toISOString())
+        setIsLateModalOpen(true)
+        setActionLoading(false)
+        return
+      }
+
+      // Not late - proceed with normal clock-in
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       
@@ -340,7 +394,16 @@ export default function TrackingPage() {
       })
 
       const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Failed to clock in')
+      if (!response.ok) {
+        // If API says we're late, show modal
+        if (result.isLate) {
+          setScheduledStartTime(null)
+          setIsLateModalOpen(true)
+          setActionLoading(false)
+          return
+        }
+        throw new Error(result.error || 'Failed to clock in')
+      }
 
       await loadActiveSession()
       await loadTodayStats()
@@ -871,6 +934,19 @@ export default function TrackingPage() {
           </div>
         </div>
       </main>
+      <LateClockInModal
+        teamId={selectedTeam}
+        scheduledStartTime={scheduledStartTime}
+        isOpen={isLateModalOpen}
+        onClose={() => {
+          setIsLateModalOpen(false)
+          setScheduledStartTime(null)
+        }}
+        onClockInSuccess={async () => {
+          await loadActiveSession()
+          await loadTodayStats()
+        }}
+      />
     </div>
   )
 }

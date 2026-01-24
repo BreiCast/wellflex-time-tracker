@@ -388,6 +388,26 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                               {entry.adjustments.length} ⚙️
                             </button>
                           )}
+                          {entry.notes && entry.notes.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const key = `${entry.date}-${entry.user_id || ''}-notes`
+                                setExpandedEntries(prev => {
+                                  const newSet = new Set(prev)
+                                  if (newSet.has(key)) {
+                                    newSet.delete(key)
+                                  } else {
+                                    newSet.add(key)
+                                  }
+                                  return newSet
+                                })
+                              }}
+                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                              title={`${entry.notes.length} note(s)`}
+                            >
+                              {entry.notes.length} 📝
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -487,6 +507,44 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                     Edit
                                   </button>
                                 )}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {/* Notes row */}
+                    {entry.notes && entry.notes.length > 0 && expandedEntries.has(`${entry.date}-${entry.user_id || ''}-notes`) && (
+                      <tr key={`${entry.date}-${entry.user_id || ''}-notes`} className="bg-purple-50/50">
+                        <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-4">
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-purple-700 uppercase tracking-wider mb-2">Notes</p>
+                            {entry.notes.map((note: any) => (
+                              <div key={note.id} className="bg-white rounded-xl p-3 border border-purple-200">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex-1">
+                                    {note.content.startsWith('[Late Clock-In]') ? (
+                                      <div className="space-y-1">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 uppercase">
+                                          Late Clock-In
+                                        </span>
+                                        <p className="text-sm font-medium text-slate-900 mt-1">
+                                          {note.content.replace('[Late Clock-In]', '').trim()}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm font-medium text-slate-900">{note.content}</p>
+                                    )}
+                                    <p className="text-xs text-slate-500 mt-1">
+                                      {new Date(note.created_at).toLocaleString('en-US', { 
+                                        month: 'short', 
+                                        day: 'numeric', 
+                                        hour: '2-digit', 
+                                        minute: '2-digit' 
+                                      })}
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>

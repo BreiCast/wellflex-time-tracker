@@ -132,6 +132,7 @@ export async function GET(request: NextRequest) {
     // Fetch break segments - only if we have sessions
     const sessionIds = sessions?.map(s => s.id) || []
     let breaks: any[] = []
+    let notes: any[] = []
     if (sessionIds.length > 0) {
       const breaksStartTime = Date.now()
       const { data: breaksData, error: breaksError } = await supabase
@@ -148,8 +149,25 @@ export async function GET(request: NextRequest) {
       breaks = breaksData || []
       const breaksQueryTime = Date.now() - breaksStartTime
       console.log(`[PERF] Timesheet breaks query: ${breaksQueryTime}ms, rows: ${breaks.length}`)
+
+      // Fetch notes for the same sessions
+      const notesStartTime = Date.now()
+      const { data: notesData, error: notesError } = await supabase
+        .from('notes')
+        .select('id, time_session_id, content, created_at, created_by')
+        .in('time_session_id', sessionIds)
+      
+      if (notesError) {
+        // Don't fail if notes query fails, just log it
+        console.error('[PERF] Timesheet notes query error:', notesError)
+      } else {
+        notes = notesData || []
+        const notesQueryTime = Date.now() - notesStartTime
+        console.log(`[PERF] Timesheet notes query: ${notesQueryTime}ms, rows: ${notes.length}`)
+      }
     } else {
       breaks = []
+      notes = []
     }
 
     // Fetch adjustments for all target users - only select needed columns
@@ -187,11 +205,13 @@ export async function GET(request: NextRequest) {
         const userSessions = sessions?.filter((s: any) => s.user_id === userId) || []
         const userSessionIds = userSessions.map((s: any) => s.id)
         const userBreaks = breaks?.filter((b: any) => userSessionIds.includes(b.time_session_id)) || []
+        const userNotes = notes?.filter((n: any) => userSessionIds.includes(n.time_session_id)) || []
         const userAdjustments = adjustments?.filter((a: any) => a.user_id === userId) || []
         
         const userTimesheet = calculateTimesheet(
           userSessions,
           userBreaks,
+          userNotes,
           userAdjustments,
           startDate,
           endDate
@@ -228,6 +248,7 @@ export async function GET(request: NextRequest) {
       const timesheet = calculateTimesheet(
         sessions || [],
         breaks || [],
+        notes || [],
         adjustments || [],
         startDate,
         endDate
