@@ -339,6 +339,15 @@ export async function PATCH(request: NextRequest) {
           }
         }
       }
+      // Handle "Work From Home" - no adjustments needed, just approve/reject
+      else if (requestTypeUpper.includes('WORK FROM HOME')) {
+        // Work From Home requests don't create time adjustments or affect PTO balances
+        // They're just informational requests for location tracking
+        console.log('[REQUESTS] ✅ Work From Home request approved (no adjustments created):', {
+          requestId: request_id,
+          requestType: requestData.request_type,
+        })
+      }
       // Handle other request types (existing logic)
       else {
         const effectiveDate = getEffectiveDateFromRequestData(requestedData)

@@ -329,6 +329,9 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                     <option value="Personal Day">Personal Day</option>
                     <option value="Holiday">Holiday</option>
                   </optgroup>
+                  <optgroup label="Work Arrangements">
+                    <option value="Work From Home">Work From Home</option>
+                  </optgroup>
                   <optgroup label="Other">
                     <option value="Training">Training</option>
                     <option value="Other">Other</option>
