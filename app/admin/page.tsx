@@ -181,6 +181,17 @@ export default function AdminPage() {
               Members
             </div>
           </button>
+          <button
+            onClick={() => router.push('/admin/live')}
+            className="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+          >
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Live Status
+            </div>
+          </button>
         </div>
 
         {/* Team Selector (for requests and timesheets) */}
