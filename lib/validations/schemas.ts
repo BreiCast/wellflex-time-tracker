@@ -52,11 +52,35 @@ export const createRequestSchema = z.object({
       typeof requestedData.adjusted_duration_minutes === 'number'
     )
   }
+
+  // For "Leave Early" (partial day off)
+  if (requestType.includes('LEAVE') && requestType.includes('EARLY')) {
+    return (
+      requestedData.date &&
+      requestedData.time_from &&
+      requestedData.time_to
+    )
+  }
   
   // For other request types, requested_data is optional
   return true
 }, {
-  message: 'Invalid requested_data for this request type. For break requests, ensure date, time_from, time_to, and break_type are provided. For break adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided.',
+  message: 'Invalid requested_data for this request type. For break requests, ensure date, time_from, time_to, and break_type are provided. For break adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided. For Leave Early, ensure date, time_from, and time_to are provided.',
+}).refine((data) => {
+  // Leave Early: To Time must be after From Time
+  const requestType = data.request_type?.toUpperCase() ?? ''
+  if (!(requestType.includes('LEAVE') && requestType.includes('EARLY'))) return true
+  const requestedData = data.requested_data || {}
+  const timeFrom = requestedData.time_from
+  const timeTo = requestedData.time_to
+  if (!timeFrom || !timeTo) return true // required-fields refine will catch missing
+  const [fromH, fromM] = String(timeFrom).split(':').map(Number)
+  const [toH, toM] = String(timeTo).split(':').map(Number)
+  const fromMins = fromH * 60 + (isNaN(fromM) ? 0 : fromM)
+  const toMins = toH * 60 + (isNaN(toM) ? 0 : toM)
+  return toMins > fromMins
+}, {
+  message: 'For Leave Early, To Time must be after From Time.',
 })
 
 export const reviewRequestSchema = z.object({

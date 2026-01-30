@@ -57,7 +57,7 @@ export function getAdjustmentTypeFromRequestType(
     return 'ADD_TIME'
   }
 
-  // PTO and leave requests typically add time (paid time off)
+  // PTO and leave requests (including Leave Early / partial day off) typically add time
   if (
     upperType.includes('PTO') ||
     upperType.includes('LEAVE') ||

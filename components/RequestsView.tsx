@@ -147,6 +147,23 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
       const requestTypeUpper = formData.request_type.toUpperCase()
       const isForgotBreak = requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))
       const isBreakAdjustment = requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')
+      const isLeaveEarly = requestTypeUpper.includes('LEAVE') && requestTypeUpper.includes('EARLY')
+
+      // Leave Early: validate To Time > From Time before submit
+      if (isLeaveEarly) {
+        const from = formData.requested_time_from
+        const to = formData.requested_time_to
+        if (from && to) {
+          const [fromH, fromM] = from.split(':').map(Number)
+          const [toH, toM] = to.split(':').map(Number)
+          const fromMins = fromH * 60 + (isNaN(fromM) ? 0 : fromM)
+          const toMins = toH * 60 + (isNaN(toM) ? 0 : toM)
+          if (toMins <= fromMins) {
+            alert('To Time must be after From Time.')
+            return
+          }
+        }
+      }
 
       // Build requested_data based on request type
       let requestedData: any = {}
@@ -163,6 +180,12 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           break_segment_id: formData.break_segment_id,
           current_duration_minutes: formData.current_duration_minutes,
           adjusted_duration_minutes: formData.adjusted_duration_minutes,
+        }
+      } else if (isLeaveEarly) {
+        requestedData = {
+          date: formData.requested_date_from,
+          time_from: formData.requested_time_from,
+          time_to: formData.requested_time_to,
         }
       } else {
         requestedData = {
@@ -324,6 +347,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                   </optgroup>
                   <optgroup label="Time Off & Leave">
                     <option value="PTO">PTO</option>
+                    <option value="Leave Early">Leave Early</option>
                     <option value="Medical Leave">Medical Leave</option>
                     <option value="Vacation">Vacation</option>
                     <option value="Personal Day">Personal Day</option>
@@ -344,6 +368,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
               const requestTypeUpper = formData.request_type.toUpperCase()
               const isForgotBreak = requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))
               const isBreakAdjustment = requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')
+              const isLeaveEarly = requestTypeUpper.includes('LEAVE') && requestTypeUpper.includes('EARLY')
 
               // Forgot to Log Break/Lunch
               if (isForgotBreak) {
@@ -527,6 +552,65 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                         )}
                       </>
                     )}
+                  </>
+                )
+              }
+
+              // Leave Early (partial day off): single date + required From/To time
+              if (isLeaveEarly) {
+                const from = formData.requested_time_from
+                const to = formData.requested_time_to
+                let toBeforeFrom = false
+                if (from && to) {
+                  const [fromH, fromM] = from.split(':').map(Number)
+                  const [toH, toM] = to.split(':').map(Number)
+                  const fromMins = fromH * 60 + (isNaN(fromM) ? 0 : fromM)
+                  const toMins = toH * 60 + (isNaN(toM) ? 0 : toM)
+                  toBeforeFrom = toMins <= fromMins
+                }
+                return (
+                  <>
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        Date <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.requested_date_from}
+                        onChange={(e) => setFormData({ ...formData, requested_date_from: e.target.value, requested_date_to: e.target.value })}
+                        className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          From Time <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={formData.requested_time_from}
+                          onChange={(e) => setFormData({ ...formData, requested_time_from: e.target.value })}
+                          className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          To Time <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={formData.requested_time_to}
+                          onChange={(e) => setFormData({ ...formData, requested_time_to: e.target.value })}
+                          className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700"
+                        />
+                        {toBeforeFrom && (
+                          <p className="text-xs font-bold text-rose-600 mt-1 ml-1">To Time must be after From Time.</p>
+                        )}
+                      </div>
+                    </div>
                   </>
                 )
               }
