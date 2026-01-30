@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatMinutes } from '@/lib/utils/timesheet'
+import { formatMinutes, getWeekStart, getWeekEnd, formatWeekRange } from '@/lib/utils/timesheet'
 import CalendarView from './CalendarView'
 import AdjustmentEditModal from './AdjustmentEditModal'
 import BreakAdjustmentModal from './BreakAdjustmentModal'
@@ -28,20 +28,31 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   const [isBreakAdjustmentModalOpen, setIsBreakAdjustmentModalOpen] = useState(false)
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
   
+  const [periodView, setPeriodView] = useState<'month' | 'week'>('month')
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
   })
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => getWeekStart(new Date()))
 
-  // Date range for fetching
+  // Date range for fetching: month uses full month; week uses Mon–Sun (ISO)
   const dateRange = useMemo(() => {
+    if (periodView === 'week') {
+      const start = getWeekStart(selectedWeekStart)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 6)
+      return {
+        start: start.toISOString().split('T')[0],
+        end: end.toISOString().split('T')[0]
+      }
+    }
     const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
     const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
     return {
       start: start.toISOString().split('T')[0],
       end: end.toISOString().split('T')[0]
     }
-  }, [currentMonth])
+  }, [periodView, currentMonth, selectedWeekStart])
 
   useEffect(() => {
     const init = async () => {
@@ -158,6 +169,20 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1))
   }
 
+  const prevWeek = () => {
+    const next = new Date(selectedWeekStart)
+    next.setDate(next.getDate() - 7)
+    setSelectedWeekStart(next)
+  }
+  const nextWeek = () => {
+    const next = new Date(selectedWeekStart)
+    next.setDate(next.getDate() + 7)
+    setSelectedWeekStart(next)
+  }
+  const goToCurrentWeek = () => {
+    setSelectedWeekStart(getWeekStart(new Date()))
+  }
+
   const totalWorkMinutes = timesheet.reduce((sum, entry) => sum + entry.workMinutes, 0)
   const totalAdjustments = timesheet.reduce((sum, entry) => sum + entry.adjustedMinutes, 0)
 
@@ -165,38 +190,92 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     <div className="space-y-6">
       {/* Header / Controls */}
       <div className="flex flex-col gap-4">
-        {/* First Row: Month Navigation */}
+        {/* First Row: View selector (Month / Week) and period navigation */}
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            </h2>
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-sm">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-sm border border-slate-200">
               <button
-                onClick={prevMonth}
-                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
-                aria-label="Previous month"
+                onClick={() => setPeriodView('month')}
+                className={`px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                  periodView === 'month' ? 'bg-white shadow-md text-indigo-600 border-2 border-indigo-500' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+                Month
               </button>
               <button
-                onClick={goToToday}
-                className="px-4 py-1.5 text-xs font-black uppercase tracking-wider text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                onClick={() => setPeriodView('week')}
+                className={`px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                  periodView === 'week' ? 'bg-white shadow-md text-indigo-600 border-2 border-indigo-500' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                Today
-              </button>
-              <button
-                onClick={nextMonth}
-                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
-                aria-label="Next month"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                Week
               </button>
             </div>
+            {periodView === 'month' ? (
+              <>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                  {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </h2>
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-sm">
+                  <button
+                    onClick={prevMonth}
+                    className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
+                    aria-label="Previous month"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={goToToday}
+                    className="px-4 py-1.5 text-xs font-black uppercase tracking-wider text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={nextMonth}
+                    className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
+                    aria-label="Next month"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                  {formatWeekRange(selectedWeekStart, new Date(selectedWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000))}
+                </h2>
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-sm">
+                  <button
+                    onClick={prevWeek}
+                    className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
+                    aria-label="Previous week"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={goToCurrentWeek}
+                    className="px-4 py-1.5 text-xs font-black uppercase tracking-wider text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={nextWeek}
+                    className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 hover:text-indigo-600"
+                    aria-label="Next week"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -283,7 +362,12 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
           <p className="text-slate-500 font-bold">Loading records...</p>
         </div>
       ) : viewMode === 'calendar' ? (
-        <CalendarView entries={timesheet} currentDate={currentMonth} />
+        <CalendarView
+          entries={timesheet}
+          currentDate={currentMonth}
+          periodView={periodView}
+          weekStart={periodView === 'week' ? selectedWeekStart : undefined}
+        />
       ) : (
         <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
           <div className="overflow-x-auto">
