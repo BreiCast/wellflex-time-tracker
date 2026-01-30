@@ -147,3 +147,34 @@ export function formatMinutes(minutes: number): string {
   return `${sign}${hours}:${mins.toString().padStart(2, '0')}`
 }
 
+/** ISO week: Monday = start, Sunday = end. Returns Monday 00:00:00 of the week containing date. */
+export function getWeekStart(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const day = d.getDay()
+  const daysToMonday = day === 0 ? 6 : day - 1
+  d.setDate(d.getDate() - daysToMonday)
+  return d
+}
+
+/** ISO week: returns Sunday 23:59:59 of the week (same calendar day as end). */
+export function getWeekEnd(date: Date): Date {
+  const start = getWeekStart(date)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+  return end
+}
+
+/** Returns true if dateStr (YYYY-MM-DD) is >= start and <= end (inclusive). */
+export function isDateInRange(dateStr: string, start: string, end: string): boolean {
+  return dateStr >= start && dateStr <= end
+}
+
+/** Format week range for display, e.g. "Jan 19 to Jan 25, 2026". */
+export function formatWeekRange(start: Date, end: Date): string {
+  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return `${startStr} to ${endStr}`
+}
+
