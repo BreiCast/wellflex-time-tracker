@@ -509,6 +509,7 @@ function LiveStatusRow({
           since={agent.since}
           status={agent.status}
           todaySegments={agent.today_segments}
+          breakType={agent.break_type}
         />
       </div>
     </li>
@@ -520,10 +521,12 @@ function TodayTimelineStrip({
   since,
   status,
   todaySegments,
+  breakType,
 }: {
   since: string | null
   status: ApiStatus
   todaySegments?: TodaySegment[] | null
+  breakType?: 'BREAK' | 'LUNCH'
 }) {
   const [now, setNow] = useState(() => new Date())
 
@@ -560,17 +563,18 @@ function TodayTimelineStrip({
             if (widthPct <= 0) return null
             const containsNow = startMs <= nowTime && nowTime < endMs
             const isBreak = seg.type === 'break'
+            const isLunch = isBreak && seg.break_type === 'LUNCH'
             return (
               <div
                 key={i}
                 className={`absolute top-0 bottom-0 z-0 rounded-sm ${
-                  isBreak ? 'bg-amber-200' : 'bg-emerald-200'
+                  isBreak ? (isLunch ? 'bg-orange-300' : 'bg-amber-200') : 'bg-emerald-200'
                 } ${containsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
                 style={{
                   left: `${leftPct * 100}%`,
                   width: `${widthPct * 100}%`,
                 }}
-                title={isBreak ? (seg.break_type === 'LUNCH' ? 'Lunch' : 'Break') : 'Work'}
+                title={isBreak ? (isLunch ? 'Lunch' : 'Break') : 'Work'}
               />
             )
           })}
@@ -585,10 +589,12 @@ function TodayTimelineStrip({
           const blockContainsNow =
             hasCurrentBlock && blockStartPct <= nowOffset && blockEndPct >= nowOffset
           if (hasCurrentBlock && blockEndPct > blockStartPct) {
+            const isOnBreak = status === 'On break'
+            const isLunch = isOnBreak && breakType === 'LUNCH'
             return (
               <div
                 className={`absolute top-0 bottom-0 z-0 rounded-sm ${
-                  status === 'On break' ? 'bg-amber-200' : 'bg-emerald-200'
+                  isOnBreak ? (isLunch ? 'bg-orange-300' : 'bg-amber-200') : 'bg-emerald-200'
                 } ${blockContainsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
                 style={{
                   left: `${blockStartPct * 100}%`,
