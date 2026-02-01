@@ -439,7 +439,8 @@ function LiveStatusRow({
   workingCount,
   minWorkingCount,
 }: {
-  agent: LiveStatusAgent & { displayStatus: DisplayStatus }
+  agent: LiveStatusAgent
+  displayStatus: DisplayStatus
   workingCount: number
   minWorkingCount: number | null
 }) {
