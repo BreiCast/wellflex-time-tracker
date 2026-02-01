@@ -10,6 +10,7 @@ interface Team {
   id: string
   name: string
   color?: string
+  min_working_count?: number | null
   created_at: string
   role: 'MEMBER' | 'MANAGER' | 'ADMIN' | 'SUPERADMIN'
 }
@@ -180,7 +181,11 @@ export default function TeamsPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ name: editingTeam.name, color: editingTeam.color || '#6366f1' }),
+        body: JSON.stringify({
+          name: editingTeam.name,
+          color: editingTeam.color || '#6366f1',
+          min_working_count: editingTeam.min_working_count ?? null,
+        }),
       })
 
       const result = await response.json()
@@ -453,6 +458,21 @@ export default function TeamsPage() {
                                   onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
                                   pattern="^#[0-9A-Fa-f]{6}$"
                                   className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-lg font-mono text-xs font-black text-slate-500"
+                                />
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Min Working</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={editingTeam.min_working_count ?? ''}
+                                  onChange={(e) => setEditingTeam({
+                                    ...editingTeam,
+                                    min_working_count: e.target.value === '' ? null : parseInt(e.target.value, 10)
+                                  })}
+                                  placeholder="No minimum"
+                                  className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-lg text-sm font-bold text-slate-700 placeholder:text-slate-300"
                                 />
                               </div>
                             </div>

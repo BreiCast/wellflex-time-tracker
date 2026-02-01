@@ -7,6 +7,7 @@ import { z } from 'zod'
 const updateTeamSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
+  min_working_count: z.number().int().min(0).nullable().optional(),
 })
 
 export async function PUT(
@@ -25,7 +26,7 @@ export async function PUT(
     const supabase = createServiceSupabaseClient()
     const { teamId } = params
     const body = await request.json()
-    const { name, color } = updateTeamSchema.parse(body)
+    const { name, color, min_working_count } = updateTeamSchema.parse(body)
 
     const isSuperAdminUser = isSuperAdmin(user)
 
@@ -69,6 +70,10 @@ export async function PUT(
     
     if (color !== undefined) {
       updateData.color = color
+    }
+
+    if (min_working_count !== undefined) {
+      updateData.min_working_count = min_working_count
     }
 
     // Update team
