@@ -21,9 +21,11 @@ CREATE TABLE public.teams (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     color TEXT DEFAULT '#6366f1',
+    min_working_count INTEGER DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT teams_name_unique UNIQUE(name)
+    CONSTRAINT teams_name_unique UNIQUE(name),
+    CONSTRAINT min_working_count_non_negative CHECK (min_working_count IS NULL OR min_working_count >= 0)
 );
 
 -- Team members table

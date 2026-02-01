@@ -1,24 +1,64 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DashboardNav from '@/components/DashboardNav'
 
-type LiveStatusValue = 'Working' | 'On break' | 'Not working' | 'Unknown'
+/** API returns these; we map to display status for filters/pills */
+type ApiStatus = 'Working' | 'On break' | 'Not working' | 'Unknown'
+
+/** Display status set per design: Working, On break, Away, Offline, Not tracking */
+export type DisplayStatus = 'Working' | 'On break' | 'Away' | 'Offline' | 'Not tracking'
+
+type TodaySegmentType = 'work' | 'break'
+
+interface TodaySegment {
+  type: TodaySegmentType
+  start_at: string
+  end_at: string | null
+  break_type?: 'BREAK' | 'LUNCH'
+}
 
 interface LiveStatusAgent {
   userId: string
   name: string
   teamId: string
   teamName: string
-  status: LiveStatusValue
+  status: ApiStatus
   since: string | null
   todayTotalMinutes: number
+  break_type?: 'BREAK' | 'LUNCH'
+  break_start_at?: string | null
+  active_break_duration_minutes?: number
+  today_segments?: TodaySegment[]
 }
 
-function formatSince(iso: string | null): string {
-  if (!iso) return '—'
+const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'All statuses' },
+  { value: 'available', label: 'Available now' },
+  { value: 'Working', label: 'Working' },
+  { value: 'On break', label: 'On break' },
+  { value: 'Away', label: 'Away' },
+  { value: 'Offline', label: 'Offline' },
+  { value: 'Not tracking', label: 'Not tracking' },
+]
+
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'status', label: 'Status' },
+  { value: 'name', label: 'Name' },
+  { value: 'active', label: 'Active time today' },
+  { value: 'last', label: 'Last activity' },
+]
+
+function apiToDisplayStatus(api: ApiStatus): DisplayStatus {
+  if (api === 'Working' || api === 'On break') return api
+  if (api === 'Not working') return 'Offline'
+  return 'Away'
+}
+
+function formatSince(iso: string | null, isOnBreak: boolean): string {
+  if (!iso) return isOnBreak ? 'Break in progress' : '—'
   const d = new Date(iso)
   return d.toLocaleString('en-US', {
     month: 'short',
@@ -34,31 +74,64 @@ function formatTodayTotal(minutes: number): string {
   return `${h}h ${m}m`
 }
 
+function getStatusPillClass(status: DisplayStatus): string {
+  const base = 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-black uppercase'
+  switch (status) {
+    case 'Working':
+      return `${base} bg-emerald-500 text-white shadow-sm`
+    case 'On break':
+      return `${base} bg-amber-500 text-white shadow-sm`
+    case 'Away':
+      return `${base} bg-blue-100 text-blue-800`
+    case 'Offline':
+      return `${base} bg-slate-100 text-slate-500`
+    case 'Not tracking':
+      return `${base} bg-red-50 text-red-700 border-2 border-red-300`
+    default:
+      return `${base} bg-slate-100 text-slate-400`
+  }
+}
+
 export default function AdminLivePage() {
   const router = useRouter()
   const [user, setUser] = useState<{ email?: string } | null>(null)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [agents, setAgents] = useState<LiveStatusAgent[]>([])
+  const [coverageByTeam, setCoverageByTeam] = useState<{ teamId: string; teamName: string; total_agents: number; working_count: number; on_break_count: number; min_working_count: number | null }[]>([])
   const [loading, setLoading] = useState(true)
+  const [listLoading, setListLoading] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [teamFilter, setTeamFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [sortBy, setSortBy] = useState<string>('status')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const fetchAgents = useCallback(async () => {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
 
+    setListLoading(true)
     const params = new URLSearchParams()
     if (teamFilter) params.set('team_id', teamFilter)
-    if (statusFilter) params.set('status', statusFilter)
+    if (statusFilter && statusFilter !== 'available' && statusFilter !== 'Not tracking') {
+      if (statusFilter === 'Away') params.set('status', 'Unknown')
+      else if (statusFilter === 'Offline') params.set('status', 'Not working')
+      else params.set('status', statusFilter)
+    }
     if (searchQuery.trim()) params.set('search', searchQuery.trim())
 
     const res = await fetch(`/api/admin/live-status?${params.toString()}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
     const data = await res.json()
-    if (res.ok) setAgents(data.agents || [])
+    if (res.ok) {
+      setAgents(data.agents ?? [])
+      setCoverageByTeam(data.coverage_by_team ?? [])
+      setLastUpdated(new Date())
+    }
+    setListLoading(false)
   }, [teamFilter, statusFilter, searchQuery])
 
   useEffect(() => {
@@ -105,10 +178,50 @@ export default function AdminLivePage() {
     router.push('/login')
   }
 
+  const filteredAndSortedAgents = useMemo(() => {
+    let list = agents.map((a) => ({ ...a, displayStatus: apiToDisplayStatus(a.status) }))
+    if (statusFilter === 'available') {
+      list = list.filter((a) => a.displayStatus === 'Working' || a.displayStatus === 'On break')
+    } else if (statusFilter === 'Not tracking') {
+      list = list.filter((a) => a.displayStatus === 'Not tracking')
+    } else if (statusFilter && statusFilter !== 'Away' && statusFilter !== 'Offline') {
+      list = list.filter((a) => a.displayStatus === statusFilter)
+    }
+    const cmp = (a: typeof list[0], b: typeof list[0]) => {
+      let v = 0
+      switch (sortBy) {
+        case 'status':
+          v = a.displayStatus.localeCompare(b.displayStatus)
+          break
+        case 'name':
+          v = a.name.localeCompare(b.name) || a.teamName.localeCompare(b.teamName)
+          break
+        case 'active':
+          v = a.todayTotalMinutes - b.todayTotalMinutes
+          break
+        case 'last':
+          v = (a.since ? new Date(a.since).getTime() : 0) - (b.since ? new Date(b.since).getTime() : 0)
+          break
+        default:
+          v = 0
+      }
+      return sortDir === 'asc' ? v : -v
+    }
+    return [...list].sort(cmp)
+  }, [agents, statusFilter, sortBy, sortDir])
+
+  const coverageMap = useMemo(() => {
+    const map = new Map<string, { working_count: number; min_working_count: number | null }>()
+    for (const c of coverageByTeam) {
+      map.set(c.teamId, { working_count: c.working_count, min_working_count: c.min_working_count })
+    }
+    return map
+  }, [coverageByTeam])
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="text-lg font-bold text-slate-600">Loading...</div>
       </div>
     )
   }
@@ -139,12 +252,34 @@ export default function AdminLivePage() {
       />
 
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Live Status</h1>
-          <p className="text-slate-500 font-medium">See who is working right now. Updates every 60 seconds.</p>
+        {/* Header: title, subtitle, last-updated, refresh */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-1">Live Status</h1>
+            <p className="text-slate-500 font-medium">Who’s working right now.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-sm font-bold text-slate-500">
+                Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => fetchAgents()}
+              disabled={listLoading}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 shadow-sm text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 mb-6">
+        {/* Toolbar: team, status filters, search, sort */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="bg-white rounded-xl border border-slate-200 p-1.5 shadow-sm">
             <select
               value={teamFilter}
@@ -159,97 +294,326 @@ export default function AdminLivePage() {
               ))}
             </select>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-1.5 shadow-sm">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2.5 text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer rounded-lg"
-            >
-              <option value="">All statuses</option>
-              <option value="Working">Working</option>
-              <option value="On break">On break</option>
-              <option value="Not working">Not working</option>
-              <option value="Unknown">Unknown</option>
-            </select>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value === '' ? 'all' : opt.value}
+                type="button"
+                onClick={() => setStatusFilter(opt.value)}
+                className={`px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                  statusFilter === opt.value
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 min-w-[200px]">
             <input
               type="text"
               placeholder="Search by name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="px-4 py-2.5 text-sm font-bold text-slate-700 placeholder:text-slate-400 outline-none rounded-xl w-56"
+              className="w-full px-4 py-2.5 text-sm font-bold text-slate-700 placeholder:text-slate-400 outline-none rounded-xl"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-500">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 outline-none cursor-pointer"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortDir === 'asc' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                    Agent
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                    Team
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                    Since
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                    Today total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-100">
-                {agents.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
-                      No agents match the filters.
-                    </td>
-                  </tr>
-                ) : (
-                  agents.map((agent) => (
-                    <tr key={`${agent.userId}-${agent.teamId}`} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-bold text-slate-900">{agent.name}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-bold text-slate-600">{agent.teamName}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2.5 py-1 rounded-full text-xs font-black uppercase ${
-                            agent.status === 'Working'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : agent.status === 'On break'
-                                ? 'bg-amber-100 text-amber-700'
-                                : agent.status === 'Not working'
-                                  ? 'bg-slate-100 text-slate-600'
-                                  : 'bg-slate-100 text-slate-400'
-                          }`}
-                        >
-                          {agent.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-600">
-                        {formatSince(agent.since)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900 font-mono">
-                        {formatTodayTotal(agent.todayTotalMinutes)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        {/* Coverage by team: working count, on break, min working, below-minimum */}
+        {coverageByTeam.length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            {(teamFilter ? coverageByTeam.filter((c) => c.teamId === teamFilter) : coverageByTeam).map(
+              (c) => {
+                const hasMin = c.min_working_count != null && c.min_working_count > 0
+                const belowMinimum = hasMin && c.working_count < c.min_working_count!
+                const atRisk = hasMin && c.working_count <= c.min_working_count!
+                return (
+                  <div
+                    key={c.teamId}
+                    className={`rounded-xl border px-4 py-2 text-sm font-bold ${
+                      belowMinimum
+                        ? 'border-red-300 bg-red-50 text-red-800'
+                        : atRisk
+                          ? 'border-amber-300 bg-amber-50 text-amber-800'
+                          : 'border-slate-200 bg-white text-slate-700'
+                    }`}
+                  >
+                    <span className="font-medium text-slate-500">{c.teamName}:</span>{' '}
+                    <span className="font-black">{c.working_count}</span> working,{' '}
+                    {c.on_break_count} on break
+                    {hasMin && (
+                      <span className="ml-2 text-slate-500">(min {c.min_working_count})</span>
+                    )}
+                    {belowMinimum && (
+                      <span className="ml-2 text-red-700 font-black">Below minimum</span>
+                    )}
+                    {!belowMinimum && atRisk && (
+                      <span className="ml-2 text-amber-700">At risk</span>
+                    )}
+                  </div>
+                )
+              }
+            )}
           </div>
+        )}
+
+        {/* Content: list of employee rows */}
+        <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+          {listLoading ? (
+            <div className="py-16 flex justify-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-indigo-500 border-t-transparent" />
+            </div>
+          ) : filteredAndSortedAgents.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <p className="text-slate-500 font-bold mb-2">No agents match the current filters.</p>
+              <button
+                type="button"
+                onClick={() => { setStatusFilter(''); setSearchQuery('') }}
+                className="text-sm font-bold text-indigo-600 hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {filteredAndSortedAgents.map((agent) => {
+                const cov = coverageMap.get(agent.teamId)
+                return (
+                  <LiveStatusRow
+                    key={`${agent.userId}-${agent.teamId}`}
+                    agent={agent}
+                    displayStatus={agent.displayStatus}
+                    workingCount={cov?.working_count ?? 0}
+                    minWorkingCount={cov?.min_working_count ?? null}
+                  />
+                )
+              })}
+            </ul>
+          )}
         </div>
       </main>
+    </div>
+  )
+}
+
+function formatBreakDuration(minutes: number): string {
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  return `${minutes}m`
+}
+
+function LiveStatusRow({
+  agent,
+  displayStatus,
+  workingCount,
+  minWorkingCount,
+}: {
+  agent: LiveStatusAgent
+  displayStatus: DisplayStatus
+  workingCount: number
+  minWorkingCount: number | null
+}) {
+  const isOnBreak = agent.status === 'On break'
+  const sinceLabel = isOnBreak ? (agent.since ? `Break since ${formatSince(agent.since, true)}` : 'Break in progress') : (agent.since ? `Since ${formatSince(agent.since, false)}` : 'Last activity —')
+  const isNotTracking = displayStatus === 'Not tracking'
+  const breakDuration =
+    isOnBreak && (agent.active_break_duration_minutes != null || agent.since)
+      ? agent.active_break_duration_minutes != null
+        ? formatBreakDuration(agent.active_break_duration_minutes)
+        : formatBreakDuration(
+            Math.floor((Date.now() - new Date(agent.since!).getTime()) / (1000 * 60))
+          )
+      : null
+
+  // Show at-risk indicator on break rows when team is at or below minimum
+  const showAtRisk =
+    isOnBreak &&
+    minWorkingCount != null &&
+    minWorkingCount > 0 &&
+    workingCount <= minWorkingCount
+
+  return (
+    <li
+      className={`flex flex-wrap items-center gap-4 px-6 py-4 hover:bg-slate-50/80 transition-colors ${
+        isNotTracking ? 'bg-red-50/50 border-l-4 border-red-300' : ''
+      }`}
+    >
+      {/* 1. Status pill (visually dominant) */}
+      <span className={getStatusPillClass(displayStatus)}>
+        {displayStatus}
+      </span>
+      {showAtRisk && (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          Low coverage
+        </span>
+      )}
+
+      {/* 2. Identity */}
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-bold text-slate-900 truncate" title={agent.name}>
+          {agent.name}
+        </p>
+        <p className="text-sm font-medium text-slate-500">{agent.teamName}</p>
+      </div>
+
+      {/* 3. Since / last activity; break duration when On break */}
+      <div className="text-sm font-bold text-slate-600 whitespace-nowrap">
+        {sinceLabel}
+        {breakDuration != null && (
+          <span className="ml-1 text-slate-500 font-medium">({breakDuration})</span>
+        )}
+      </div>
+
+      {/* 4. Today total */}
+      <div className="text-sm font-mono font-black text-slate-700">
+        {formatTodayTotal(agent.todayTotalMinutes)}
+      </div>
+
+      {/* 5. Per-row today timeline with Now indicator */}
+      <div className="w-full mt-3 pl-0 sm:pl-0">
+        <TodayTimelineStrip
+          since={agent.since}
+          status={agent.status}
+          todaySegments={agent.today_segments}
+        />
+      </div>
+    </li>
+  )
+}
+
+/** Compact today strip: vertical "Now" line (auto-updating); work/break blocks from today_segments or single since→now fallback. */
+function TodayTimelineStrip({
+  since,
+  status,
+  todaySegments,
+}: {
+  since: string | null
+  status: ApiStatus
+  todaySegments?: TodaySegment[] | null
+}) {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const startOfDay = useMemo(() => {
+    const d = new Date(now)
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [now])
+  const endOfDay = useMemo(() => {
+    const d = new Date(now)
+    d.setHours(23, 59, 59, 999)
+    return d
+  }, [now])
+  const totalMs = endOfDay.getTime() - startOfDay.getTime()
+  const nowOffset = Math.max(0, Math.min(1, (now.getTime() - startOfDay.getTime()) / totalMs))
+  const nowTime = now.getTime()
+
+  const useMultiBlock = Array.isArray(todaySegments) && todaySegments.length > 0
+
+  return (
+    <div className="relative h-8 rounded-lg bg-slate-100 overflow-hidden">
+      {useMultiBlock ? (
+        <>
+          {todaySegments!.map((seg, i) => {
+            const startMs = new Date(seg.start_at).getTime()
+            const endMs = seg.end_at ? new Date(seg.end_at).getTime() : nowTime
+            const leftPct = Math.max(0, (startMs - startOfDay.getTime()) / totalMs)
+            const widthPct = Math.min(1 - leftPct, (endMs - startMs) / totalMs)
+            if (widthPct <= 0) return null
+            const containsNow = startMs <= nowTime && nowTime < endMs
+            const isBreak = seg.type === 'break'
+            return (
+              <div
+                key={i}
+                className={`absolute top-0 bottom-0 z-0 rounded-sm ${
+                  isBreak ? 'bg-amber-200' : 'bg-emerald-200'
+                } ${containsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
+                style={{
+                  left: `${leftPct * 100}%`,
+                  width: `${widthPct * 100}%`,
+                }}
+                title={isBreak ? (seg.break_type === 'LUNCH' ? 'Lunch' : 'Break') : 'Work'}
+              />
+            )
+          })}
+        </>
+      ) : (
+        (() => {
+          const hasCurrentBlock = (status === 'Working' || status === 'On break') && since
+          const blockStartPct = hasCurrentBlock
+            ? Math.max(0, (new Date(since).getTime() - startOfDay.getTime()) / totalMs)
+            : 0
+          const blockEndPct = hasCurrentBlock ? nowOffset : 0
+          const blockContainsNow =
+            hasCurrentBlock && blockStartPct <= nowOffset && blockEndPct >= nowOffset
+          if (hasCurrentBlock && blockEndPct > blockStartPct) {
+            return (
+              <div
+                className={`absolute top-0 bottom-0 z-0 rounded-sm ${
+                  status === 'On break' ? 'bg-amber-200' : 'bg-emerald-200'
+                } ${blockContainsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
+                style={{
+                  left: `${blockStartPct * 100}%`,
+                  width: `${(blockEndPct - blockStartPct) * 100}%`,
+                }}
+              />
+            )
+          }
+          return null
+        })()
+      )}
+      {/* Vertical "Now" line */}
+      <div
+        className="absolute top-0 bottom-0 w-0.5 bg-indigo-500 z-10"
+        style={{ left: `${nowOffset * 100}%` }}
+      >
+        <span className="absolute -top-5 left-0 text-[10px] font-bold text-indigo-600 whitespace-nowrap">
+          Now
+        </span>
+      </div>
+      {!useMultiBlock && !((status === 'Working' || status === 'On break') && since) && (
+        <div className="absolute inset-0 flex items-center justify-center z-0">
+          <span className="text-xs font-medium text-slate-400">No activity today</span>
+        </div>
+      )}
     </div>
   )
 }
