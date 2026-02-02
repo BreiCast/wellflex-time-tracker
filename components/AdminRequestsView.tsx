@@ -35,8 +35,17 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
 
       // Use API route with service role to bypass RLS issues
       const teamIdsToQuery = selectedTeamId && selectedTeamId !== '' ? [selectedTeamId] : teamIds
-      
-      const response = await fetch('/api/admin/requests', {
+
+      if (teamIdsToQuery.length === 0) {
+        setRequests([])
+        setLoading(false)
+        return
+      }
+
+      const queryParams = selectedTeamId && selectedTeamId !== ''
+        ? `?team_id=${encodeURIComponent(selectedTeamId)}`
+        : ''
+      const response = await fetch(`/api/admin/requests${queryParams}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
@@ -53,13 +62,6 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
         if (selectedTeamId && selectedTeamId !== '') {
           filteredRequests = filteredRequests.filter((req: any) => req.team_id === selectedTeamId)
         }
-        
-        console.log('Loaded requests:', {
-          total: result.requests?.length || 0,
-          filtered: filteredRequests.length,
-          teamIds: result.teamIds,
-          selectedTeamId,
-        })
         
         setRequests(filteredRequests)
       }
