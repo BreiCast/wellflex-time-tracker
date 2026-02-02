@@ -52,6 +52,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ requests: [] })
     }
 
+    const requestedTeamId = request.nextUrl.searchParams.get('team_id')
+    if (requestedTeamId && !teamIds.includes(requestedTeamId)) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
+
+    const teamIdsToQuery = requestedTeamId ? [requestedTeamId] : teamIds
+
     // Get all pending requests from those teams - limit to last 90 days and 100 results
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
@@ -73,7 +83,7 @@ export async function GET(request: NextRequest) {
         users!requests_user_id_fkey(email, full_name),
         teams(id, name, color)
       `) // Only essential columns
-      .in('team_id', teamIds)
+      .in('team_id', teamIdsToQuery)
       .or('status.eq.PENDING,status.is.null')
       .gte('created_at', ninetyDaysAgo.toISOString()) // Only recent requests
       .order('created_at', { ascending: false })
@@ -89,9 +99,8 @@ export async function GET(request: NextRequest) {
     const queryTime = Date.now() - startTime
     console.log(`[PERF] Admin requests query: ${queryTime}ms, rows: ${requests?.length || 0}`)
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       requests: requests || [],
-      teamIds: teamIds // For debugging
     })
   } catch (error: any) {
     return NextResponse.json(
