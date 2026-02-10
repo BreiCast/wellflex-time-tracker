@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
+import { getTodayBounds } from '@/lib/utils/date'
 
 export type LiveStatusValue = 'Working' | 'On break' | 'Not working' | 'Unknown'
 
@@ -37,12 +38,7 @@ export interface CoverageByTeam {
   min_working_count: number | null
 }
 
-function getTodayUTC(): { start: string; end: string } {
-  const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0))
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
-  return { start: start.toISOString(), end: end.toISOString() }
-}
+// getTodayUTC removed – now using shared getTodayBounds from @/lib/utils/date
 
 type SessionRow = { id: string; clock_in_at: string; clock_out_at: string | null }
 type BreakRow = { time_session_id: string; break_type: 'BREAK' | 'LUNCH'; break_start_at: string; break_end_at: string | null }
@@ -115,13 +111,14 @@ export async function GET(request: NextRequest) {
     const filterTeamId = searchParams.get('team_id') || ''
     const filterStatus = searchParams.get('status') || ''
     const filterSearch = (searchParams.get('search') || '').trim().toLowerCase()
+    const offsetMinutes = parseInt(searchParams.get('offset_minutes') || '0', 10) || 0
 
     const teamIdsToUse = filterTeamId ? [filterTeamId].filter(id => teamIds.includes(id)) : teamIds
     if (teamIdsToUse.length === 0) {
       return NextResponse.json({ agents: [] })
     }
 
-    const { start: todayStart, end: todayEnd } = getTodayUTC()
+    const { start: todayStart, end: todayEnd } = getTodayBounds(offsetMinutes)
 
     const { data: teamMembers, error: tmError } = await supabase
       .from('team_members')
