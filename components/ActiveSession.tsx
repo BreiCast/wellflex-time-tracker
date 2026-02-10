@@ -77,7 +77,7 @@ export default function ActiveSession({ session, breakSegment, onSessionUpdate }
       }
 
       // Check coverage before starting break
-      const coverageRes = await fetch(`/api/coverage?team_id=${session.team_id}`, {
+      const coverageRes = await fetch(`/api/coverage?team_id=${session.team_id}&offset_minutes=${-new Date().getTimezoneOffset()}`, {
         headers: { Authorization: `Bearer ${authSession.access_token}` },
       })
 

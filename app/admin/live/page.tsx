@@ -114,6 +114,8 @@ export default function AdminLivePage() {
 
     setListLoading(true)
     const params = new URLSearchParams()
+    // Send viewer's timezone offset so the API computes "today" in local time
+    params.set('offset_minutes', String(-new Date().getTimezoneOffset()))
     if (teamFilter) params.set('team_id', teamFilter)
     if (statusFilter && statusFilter !== 'available' && statusFilter !== 'Not tracking') {
       if (statusFilter === 'Away') params.set('status', 'Unknown')

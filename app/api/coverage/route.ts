@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
+import { getTodayBounds } from '@/lib/utils/date'
 
 export interface CoverageResponse {
   teamId: string
@@ -11,12 +12,7 @@ export interface CoverageResponse {
   min_working_count: number | null
 }
 
-function getTodayUTC(): { start: string; end: string } {
-  const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0))
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
-  return { start: start.toISOString(), end: end.toISOString() }
-}
+// getTodayUTC removed – now using shared getTodayBounds from @/lib/utils/date
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,6 +25,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get('team_id')
+    const offsetMinutes = parseInt(searchParams.get('offset_minutes') || '0', 10) || 0
 
     if (!teamId) {
       return NextResponse.json({ error: 'team_id is required' }, { status: 400 })
@@ -83,7 +80,7 @@ export async function GET(request: NextRequest) {
       } satisfies CoverageResponse)
     }
 
-    const { start: todayStart, end: todayEnd } = getTodayUTC()
+    const { start: todayStart, end: todayEnd } = getTodayBounds(offsetMinutes)
 
     // Get today's sessions for these users in this team
     const { data: sessions } = await supabase
