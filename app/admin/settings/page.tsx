@@ -140,6 +140,40 @@ export default function AdminSettingsPage() {
 
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">
+              Max Shift Hours (auto clock-out)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="24"
+              value={settings.max_shift_hours ?? 16}
+              onChange={(e) => setSettings({ ...settings, max_shift_hours: parseInt(e.target.value) })}
+              className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            />
+            <p className="mt-1 text-xs text-slate-500">Active sessions older than this are eligible for forced clock out</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Auto Clock-Out Grace (minutes, optional)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="240"
+              value={settings.auto_clock_out_grace_minutes ?? ''}
+              onChange={(e) => setSettings({
+                ...settings,
+                auto_clock_out_grace_minutes: e.target.value === '' ? null : parseInt(e.target.value)
+              })}
+              placeholder="No extra grace"
+              className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            />
+            <p className="mt-1 text-xs text-slate-500">Adds an optional grace period after max shift before enforcing clock out</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">
               Clock In Reminder Window (minutes)
             </label>
             <input

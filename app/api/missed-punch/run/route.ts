@@ -7,15 +7,15 @@ function verifyCronSecret(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization')
   const cronSecretHeader = request.headers.get('x-cron-secret')
   const expectedSecret = process.env.CRON_SECRET
-  
+
   if (!expectedSecret) return false
-  
+
   // Vercel Cron sends: Authorization: Bearer <secret>
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.replace('Bearer ', '')
     return token === expectedSecret
   }
-  
+
   // Fallback to custom header
   return cronSecretHeader === expectedSecret
 }
@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
     }
 
     const thresholdHours = (orgSettings as any).missed_punch_threshold_hours || 12
+    const maxShiftHours = (orgSettings as any).max_shift_hours || 16
+    const autoClockOutGraceMinutes = (orgSettings as any).auto_clock_out_grace_minutes || 0
+
     const thresholdMs = thresholdHours * 60 * 60 * 1000
     const now = new Date()
     const thresholdTime = new Date(now.getTime() - thresholdMs)
@@ -67,6 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         flagged: 0,
+        autoClockedOut: 0,
         details: []
       })
     }
@@ -78,23 +82,18 @@ export async function POST(request: NextRequest) {
       .select('time_session_id')
       .in('time_session_id', sessionIds)
       .is('resolved_at', null)
-    
+
     const flaggedSessionIds = new Set((existingFlags || []).map((f: any) => f.time_session_id))
 
     const flagged: string[] = []
+    const autoClockedOut: string[] = []
     const skipped: string[] = []
 
     for (const session of longRunningSessions) {
-      // Check if flag already exists (from batch query)
-      if (flaggedSessionIds.has(session.id)) {
-        skipped.push(`Session ${session.id} already flagged`)
-        continue
-      }
+      const clockInDate = new Date(session.clock_in_at)
 
       // Get user's schedule for the day of clock_in
-      const clockInDate = new Date(session.clock_in_at)
       const dayOfWeek = clockInDate.getDay()
-      
       const { data: schedule } = await supabase
         .from('schedules')
         .select('end_time')
@@ -104,45 +103,97 @@ export async function POST(request: NextRequest) {
         .single()
 
       let flagReason = `Session running longer than ${thresholdHours} hours`
-      
+
       // If schedule exists, check if past end time
       if (schedule) {
         const [endHour, endMin] = schedule.end_time.split(':').map(Number)
         const scheduledEnd = new Date(clockInDate)
         scheduledEnd.setHours(endHour, endMin, 0, 0)
-        
+
         if (now > scheduledEnd) {
           flagReason = `Session past scheduled end time (${schedule.end_time})`
         }
       }
 
-      // Create missed punch flag
-      const { error: flagError } = await supabase
-        .from('missed_punch_flags' as any)
-        .insert({
-          user_id: session.user_id,
-          time_session_id: session.id,
-          team_id: session.team_id,
-          flag_reason: flagReason
-        })
+      if (!flaggedSessionIds.has(session.id)) {
+        // Create missed punch flag
+        const { error: flagError } = await supabase
+          .from('missed_punch_flags' as any)
+          .insert({
+            user_id: session.user_id,
+            time_session_id: session.id,
+            team_id: session.team_id,
+            flag_reason: flagReason
+          })
 
-      if (flagError) {
-        console.error(`[MISSED-PUNCH] Failed to flag session ${session.id}:`, flagError)
-        skipped.push(`Session ${session.id}: ${flagError.message}`)
-      } else {
-        flagged.push(`Session ${session.id} (User: ${session.user_id})`)
+        if (flagError) {
+          console.error(`[MISSED-PUNCH] Failed to flag session ${session.id}:`, flagError)
+          skipped.push(`Session ${session.id}: ${flagError.message}`)
+        } else {
+          flagged.push(`Session ${session.id} (User: ${session.user_id})`)
+        }
+      }
+
+      // Auto clock out when max shift + grace exceeded. Keep idempotent by only updating where clock_out_at is null.
+      const enforcedCutoff = new Date(
+        clockInDate.getTime() + (maxShiftHours * 60 + autoClockOutGraceMinutes) * 60 * 1000
+      )
+
+      if (now >= enforcedCutoff) {
+        const { data: updatedSession, error: updateError } = await supabase
+          .from('time_sessions')
+          .update({
+            clock_out_at: enforcedCutoff.toISOString()
+          })
+          .eq('id', session.id)
+          .is('clock_out_at', null)
+          .select('id')
+          .maybeSingle()
+
+        if (updateError) {
+          console.error(`[AUTO-CLOCK-OUT] Failed to close session ${session.id}:`, updateError)
+          skipped.push(`Auto close failed ${session.id}: ${updateError.message}`)
+          continue
+        }
+
+        if (updatedSession) {
+          const reason = `AUTO_CLOCK_OUT_MAX_SHIFT: Enforced clock_out_at at ${enforcedCutoff.toISOString()} (max_shift_hours=${maxShiftHours}, grace_minutes=${autoClockOutGraceMinutes})`
+
+          await supabase
+            .from('notification_events' as any)
+            .insert({
+              user_id: session.user_id,
+              notification_type: 'MISSED_PUNCH_REMINDER',
+              status: 'SENT',
+              payload: {
+                reason_code: 'AUTO_CLOCK_OUT_MAX_SHIFT',
+                reason,
+                time_session_id: session.id,
+                enforced_cutoff_at: enforcedCutoff.toISOString(),
+                max_shift_hours: maxShiftHours,
+                auto_clock_out_grace_minutes: autoClockOutGraceMinutes
+              },
+              sent_at: now.toISOString()
+            })
+
+          autoClockedOut.push(`Session ${session.id} auto-closed at ${enforcedCutoff.toISOString()}`)
+        } else {
+          skipped.push(`Session ${session.id} already closed`) // idempotent rerun path
+        }
       }
     }
 
     const totalTime = Date.now() - startTime
-    console.log(`[PERF] Missed-punch complete: ${totalTime}ms, flagged=${flagged.length}, skipped=${skipped.length}`)
+    console.log(`[PERF] Missed-punch complete: ${totalTime}ms, flagged=${flagged.length}, autoClockedOut=${autoClockedOut.length}, skipped=${skipped.length}`)
 
     return NextResponse.json({
       success: true,
       flagged: flagged.length,
+      autoClockedOut: autoClockedOut.length,
       skipped: skipped.length,
       details: {
         flagged,
+        autoClockedOut,
         skipped
       }
     })

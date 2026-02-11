@@ -5,6 +5,8 @@ import { z } from 'zod'
 
 const settingsSchema = z.object({
   missed_punch_threshold_hours: z.number().int().min(1).max(24).optional(),
+  max_shift_hours: z.number().int().min(1).max(24).optional(),
+  auto_clock_out_grace_minutes: z.number().int().min(0).max(240).nullable().optional(),
   clock_in_reminder_window_minutes: z.number().int().min(0).max(120).optional(),
   clock_out_reminder_before_minutes: z.number().int().min(0).max(120).optional(),
   clock_out_reminder_after_minutes: z.number().int().min(0).max(120).optional(),
