@@ -14,6 +14,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
 # Application URL (for email redirects)
 # Use your subdomain: tracker.wellflex.co
 NEXT_PUBLIC_APP_URL=https://tracker.wellflex.co
+
+# Cron job auth (required for Vercel cron endpoints)
+CRON_SECRET=your-strong-random-secret
 ```
 
 **Important:** 
@@ -110,6 +113,17 @@ Consider adding:
 3. **Deploy:**
    - Click "Deploy"
    - Vercel will automatically build and deploy
+
+4. **Verify cron schedules and auth:**
+   - `vercel.json` should include:
+     - `/api/notifications/run` on `*/10 * * * *`
+     - `/api/missed-punch/run` on `*/15 * * * *`
+   - Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically to cron invocations.
+   - You can manually verify health:
+     ```bash
+     curl -X GET "https://tracker.wellflex.co/api/cron/status" \
+      -H "Authorization: Bearer YOUR_CRON_SECRET"
+     ```
 
 #### Setting Up Subdomain (tracker.wellflex.co)
 

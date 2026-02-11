@@ -118,3 +118,23 @@ After redeploying:
 - Verify `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are correct
 - Check network tab to see if requests are failing
 
+
+
+## Cron Jobs
+
+Vercel cron routes use bearer authentication. Set `CRON_SECRET` in Vercel and ensure manual checks include:
+
+```bash
+curl -X POST "https://tracker.wellflex.co/api/notifications/run?dry_run=true" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+curl -X POST "https://tracker.wellflex.co/api/missed-punch/run" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+curl -X GET "https://tracker.wellflex.co/api/cron/status" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+Expected schedules in `vercel.json`:
+- `/api/notifications/run`: `*/10 * * * *`
+- `/api/missed-punch/run`: `*/15 * * * *`

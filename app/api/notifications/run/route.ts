@@ -1,37 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { sendReminderEmail } from '@/lib/utils/email-reminders'
-
-// Verify CRON_SECRET
-function verifyCronSecret(request: NextRequest): boolean {
-  // Check Authorization header (Vercel Cron standard) or x-cron-secret header
-  const authHeader = request.headers.get('authorization')
-  const cronSecretHeader = request.headers.get('x-cron-secret')
-  const expectedSecret = process.env.CRON_SECRET
-  
-  if (!expectedSecret) return false
-  
-  // Vercel Cron sends: Authorization: Bearer <secret>
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.replace('Bearer ', '')
-    return token === expectedSecret
-  }
-  
-  // Fallback to custom header
-  return cronSecretHeader === expectedSecret
-}
+import { verifyCronBearerToken } from '@/lib/utils/cron-auth'
+import { CRON_JOBS, recordCronRun } from '@/lib/utils/cron-monitor'
 
 export async function POST(request: NextRequest) {
+  const startedAt = new Date()
+  const supabase = createServiceSupabaseClient()
+
   try {
     // Verify cron secret
-    if (!verifyCronSecret(request)) {
+    if (!verifyCronBearerToken(request)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const supabase = createServiceSupabaseClient()
     const dryRun = request.nextUrl.searchParams.get('dry_run') === 'true'
 
     // Get organization settings
@@ -41,6 +26,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!orgSettings) {
+      await recordCronRun(supabase as any, {
+        jobName: CRON_JOBS.notifications,
+        status: 'FAILED',
+        startedAt,
+        errorMessage: 'Organization settings not found'
+      })
+
       return NextResponse.json(
         { error: 'Organization settings not found' },
         { status: 500 }
@@ -69,6 +61,13 @@ export async function POST(request: NextRequest) {
 
     if (!users || users.length === 0) {
       console.log(`[PERF] Notifications scan: ${Date.now() - startTime}ms, no users with preferences`)
+      await recordCronRun(supabase as any, {
+        jobName: CRON_JOBS.notifications,
+        status: 'SUCCESS',
+        startedAt,
+        details: { processed: 0, sent: 0, skipped: 0, dryRun }
+      })
+
       return NextResponse.json({ processed: 0, sent: 0 })
     }
 
@@ -381,7 +380,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       processed: processed.length,
       sent: sent.length,
@@ -392,9 +391,31 @@ export async function POST(request: NextRequest) {
         skipped
       },
       dryRun
+    }
+
+    await recordCronRun(supabase as any, {
+      jobName: CRON_JOBS.notifications,
+      status: 'SUCCESS',
+      startedAt,
+      details: {
+        processed: processed.length,
+        sent: sent.length,
+        skipped: skipped.length,
+        dryRun
+      }
     })
+
+    return NextResponse.json(responseBody)
   } catch (error: any) {
     console.error('[NOTIFICATIONS] Error:', error)
+
+    await recordCronRun(supabase as any, {
+      jobName: CRON_JOBS.notifications,
+      status: 'FAILED',
+      startedAt,
+      errorMessage: error.message || 'Internal server error'
+    })
+
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

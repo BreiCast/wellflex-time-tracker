@@ -1,36 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
-
-// Verify CRON_SECRET
-function verifyCronSecret(request: NextRequest): boolean {
-  // Check Authorization header (Vercel Cron standard) or x-cron-secret header
-  const authHeader = request.headers.get('authorization')
-  const cronSecretHeader = request.headers.get('x-cron-secret')
-  const expectedSecret = process.env.CRON_SECRET
-  
-  if (!expectedSecret) return false
-  
-  // Vercel Cron sends: Authorization: Bearer <secret>
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.replace('Bearer ', '')
-    return token === expectedSecret
-  }
-  
-  // Fallback to custom header
-  return cronSecretHeader === expectedSecret
-}
+import { verifyCronBearerToken } from '@/lib/utils/cron-auth'
+import { CRON_JOBS, recordCronRun } from '@/lib/utils/cron-monitor'
 
 export async function POST(request: NextRequest) {
+  const startedAt = new Date()
+  const supabase = createServiceSupabaseClient()
+
   try {
     // Verify cron secret
-    if (!verifyCronSecret(request)) {
+    if (!verifyCronBearerToken(request)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
-
-    const supabase = createServiceSupabaseClient()
 
     // Get organization settings
     const { data: orgSettings } = await supabase
@@ -39,6 +23,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!orgSettings) {
+      await recordCronRun(supabase as any, {
+        jobName: CRON_JOBS.missedPunch,
+        status: 'FAILED',
+        startedAt,
+        errorMessage: 'Organization settings not found'
+      })
+
       return NextResponse.json(
         { error: 'Organization settings not found' },
         { status: 500 }
@@ -64,6 +55,13 @@ export async function POST(request: NextRequest) {
     console.log(`[PERF] Missed-punch scan: ${queryTime}ms, found ${longRunningSessions?.length || 0} sessions`)
 
     if (!longRunningSessions || longRunningSessions.length === 0) {
+      await recordCronRun(supabase as any, {
+        jobName: CRON_JOBS.missedPunch,
+        status: 'SUCCESS',
+        startedAt,
+        details: { flagged: 0, skipped: 0 }
+      })
+
       return NextResponse.json({
         success: true,
         flagged: 0,
@@ -137,6 +135,16 @@ export async function POST(request: NextRequest) {
     const totalTime = Date.now() - startTime
     console.log(`[PERF] Missed-punch complete: ${totalTime}ms, flagged=${flagged.length}, skipped=${skipped.length}`)
 
+    await recordCronRun(supabase as any, {
+      jobName: CRON_JOBS.missedPunch,
+      status: 'SUCCESS',
+      startedAt,
+      details: {
+        flagged: flagged.length,
+        skipped: skipped.length
+      }
+    })
+
     return NextResponse.json({
       success: true,
       flagged: flagged.length,
@@ -148,6 +156,14 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[MISSED-PUNCH] Error:', error)
+
+    await recordCronRun(supabase as any, {
+      jobName: CRON_JOBS.missedPunch,
+      status: 'FAILED',
+      startedAt,
+      errorMessage: error.message || 'Internal server error'
+    })
+
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

@@ -69,9 +69,11 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 The `vercel.json` file includes cron job definitions:
 
 - **Notifications**: Runs every 10 minutes (`*/10 * * * *`)
-- **Missed Punch Detection**: Runs every 30 minutes (`*/30 * * * *`)
+- **Missed Punch Detection**: Runs every 15 minutes (`*/15 * * * *`)
 
 Vercel will automatically call these endpoints with the `Authorization: Bearer <CRON_SECRET>` header.
+
+> `CRON_SECRET` **must** be configured in Vercel. Both cron endpoints now require the bearer token and return `401` without it.
 
 ## Testing Reminders
 
@@ -99,8 +101,36 @@ npm run dev
 
 # In another terminal, test notifications
 curl -X POST "http://localhost:3000/api/notifications/run?dry_run=true" \
-  -H "x-cron-secret: local-dev-secret"
+  -H "Authorization: Bearer local-dev-secret"
+
+# Test missed punch detection
+curl -X POST "http://localhost:3000/api/missed-punch/run" \
+  -H "Authorization: Bearer local-dev-secret"
+
+# Check operational health
+curl -X GET "http://localhost:3000/api/cron/status" \
+  -H "Authorization: Bearer local-dev-secret"
 ```
+
+
+### Operational Health Check
+
+Use the cron status endpoint to verify last successful runs:
+
+```bash
+curl -X GET "https://your-app.vercel.app/api/cron/status" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+Response includes latest run metadata for both jobs (`notifications_run`, `missed_punch_run`), including `status`, `finished_at`, `duration_ms`, and any `error_message`.
+
+In server logs, each run also emits a structured line like:
+
+```
+[CRON][notifications_run] SUCCESS finished_at=... duration_ms=... details={...}
+```
+
+This provides a quick dashboard+logs health check pattern for admins.
 
 ## Features
 
@@ -170,9 +200,9 @@ Admins can configure:
 ### Cron Jobs Not Running
 
 1. Verify `CRON_SECRET` is set in Vercel
-2. Check Vercel cron job logs in dashboard
+2. Check Vercel cron job logs in dashboard and look for `[CRON][...]` entries
 3. Ensure endpoints return 200 status (not 401)
-4. Verify `vercel.json` has correct cron configuration
+4. Verify `vercel.json` has `*/10` for notifications and `*/15` for missed punch
 
 ### Reminders Not Triggering
 

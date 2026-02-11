@@ -4,6 +4,15 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/notifications/run",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/missed-punch/run",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }
-

@@ -18,6 +18,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 
 # Application URL (REQUIRED for email redirects)
 NEXT_PUBLIC_APP_URL=https://tracker.wellflex.co
+CRON_SECRET=your-strong-random-secret
 ```
 
 ### 3. Important Notes:
@@ -49,3 +50,23 @@ If you still get the middleware error after setting environment variables:
 3. **Check for typos**: Especially in the Supabase URL
 4. **Redeploy**: Environment variable changes require a new deployment
 
+
+
+## Cron Jobs
+
+Vercel cron routes use bearer authentication. Set `CRON_SECRET` in Vercel and ensure manual checks include:
+
+```bash
+curl -X POST "https://tracker.wellflex.co/api/notifications/run?dry_run=true" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+curl -X POST "https://tracker.wellflex.co/api/missed-punch/run" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+curl -X GET "https://tracker.wellflex.co/api/cron/status" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+Expected schedules in `vercel.json`:
+- `/api/notifications/run`: `*/10 * * * *`
+- `/api/missed-punch/run`: `*/15 * * * *`
