@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DashboardNav from '@/components/DashboardNav'
@@ -22,6 +22,11 @@ interface BreakSegment {
   break_start_at: string
   break_end_at: string | null
   time_session_id: string
+}
+
+interface OrganizationSettings {
+  missed_punch_threshold_hours: number
+  max_shift_hours?: number | null
 }
 
 export default function TrackingPage() {
@@ -50,6 +55,10 @@ export default function TrackingPage() {
   const [recentSessions, setRecentSessions] = useState<any[]>([])
   const [isLateModalOpen, setIsLateModalOpen] = useState(false)
   const [scheduledStartTime, setScheduledStartTime] = useState<string | null>(null)
+  const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings | null>(null)
+  const [showAutoClockOutNotice, setShowAutoClockOutNotice] = useState(false)
+  const previousActiveSessionRef = useRef<TimeSession | null>(null)
+  const manualClockOutRef = useRef(false)
 
   // Update current time every second for live timer
   useEffect(() => {
@@ -263,6 +272,27 @@ export default function TrackingPage() {
     }
   }, [user, activeSession, activeBreak])
 
+  const loadOrganizationSettings = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('organization_settings' as any)
+        .select('missed_punch_threshold_hours, max_shift_hours')
+        .maybeSingle()
+
+      if (error) {
+        console.warn('Unable to load organization settings for shift thresholds:', error.message)
+        return
+      }
+
+      if (data) {
+        setOrganizationSettings(data as OrganizationSettings)
+      }
+    } catch (error) {
+      console.warn('Failed to load organization settings for shift thresholds:', error)
+    }
+  }, [])
+
   const loadRecentSessions = useCallback(async () => {
     if (!user) return
 
@@ -301,22 +331,25 @@ export default function TrackingPage() {
     if (user) {
       loadActiveSession()
       loadRecentSessions()
+      loadOrganizationSettings()
     }
-  }, [user, loadActiveSession, loadRecentSessions])
+  }, [user, loadActiveSession, loadRecentSessions, loadOrganizationSettings])
 
   useEffect(() => {
     if (!user) return
 
     const refreshStats = () => {
       const now = new Date()
+      loadActiveSession()
       loadTodayStats(now)
       loadSchedules(now)
+      loadRecentSessions()
     }
 
     refreshStats()
     const interval = setInterval(refreshStats, 60000)
     return () => clearInterval(interval)
-  }, [user, loadTodayStats, loadSchedules])
+  }, [user, loadActiveSession, loadTodayStats, loadSchedules, loadRecentSessions])
 
   const checkIfLate = async (): Promise<{ isLate: boolean; scheduledStart: Date | null }> => {
     if (!selectedTeam || !user) {
@@ -416,6 +449,7 @@ export default function TrackingPage() {
 
   const handleClockOut = async () => {
     if (!activeSession) return
+    manualClockOutRef.current = true
     setActionLoading(true)
     setError('')
 
@@ -442,6 +476,7 @@ export default function TrackingPage() {
     } catch (err: any) {
       setError(err.message || 'Failed to clock out')
     } finally {
+      manualClockOutRef.current = false
       setActionLoading(false)
     }
   }
@@ -539,6 +574,36 @@ export default function TrackingPage() {
     router.push('/login')
   }
 
+  const sessionDuration = getSessionDuration()
+  const breakDuration = getBreakDuration()
+  const missedPunchThresholdHours = organizationSettings?.missed_punch_threshold_hours || 12
+  const maxShiftHours = organizationSettings?.max_shift_hours || missedPunchThresholdHours
+  const maxShiftSeconds = maxShiftHours * 60 * 60
+  const warningLeadSeconds = 60 * 60
+  const criticalLeadSeconds = 15 * 60
+  const secondsUntilAutoClockOut = maxShiftSeconds - sessionDuration
+  const isCriticalShiftWindow = activeSession && secondsUntilAutoClockOut > 0 && secondsUntilAutoClockOut <= criticalLeadSeconds
+  const isWarningShiftWindow = activeSession && secondsUntilAutoClockOut > criticalLeadSeconds && secondsUntilAutoClockOut <= warningLeadSeconds
+
+  useEffect(() => {
+    const previousSession = previousActiveSessionRef.current
+
+    if (previousSession && !activeSession && !manualClockOutRef.current) {
+      const previousClockIn = new Date(previousSession.clock_in_at)
+      const endedDurationSeconds = Math.floor((Date.now() - previousClockIn.getTime()) / 1000)
+
+      if (endedDurationSeconds >= maxShiftSeconds) {
+        setShowAutoClockOutNotice(true)
+      }
+    }
+
+    if (activeSession) {
+      setShowAutoClockOutNotice(false)
+    }
+
+    previousActiveSessionRef.current = activeSession
+  }, [activeSession, maxShiftSeconds])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
@@ -549,9 +614,6 @@ export default function TrackingPage() {
       </div>
     )
   }
-
-  const sessionDuration = getSessionDuration()
-  const breakDuration = getBreakDuration()
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -581,6 +643,59 @@ export default function TrackingPage() {
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
             <span className="font-semibold">{error}</span>
+          </div>
+        )}
+
+        {(isWarningShiftWindow || isCriticalShiftWindow) && activeSession && (
+          <div className={`mb-8 p-5 rounded-2xl border shadow-sm ${isCriticalShiftWindow ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+            <p className={`font-black ${isCriticalShiftWindow ? 'text-red-700' : 'text-amber-700'}`}>
+              {isCriticalShiftWindow
+                ? `Critical: your shift will auto clock out in ${formatDurationShort(Math.max(secondsUntilAutoClockOut, 0))}.`
+                : `Warning: you are approaching the max shift limit (${maxShiftHours}h). Auto clock-out in ${formatDurationShort(Math.max(secondsUntilAutoClockOut, 0))}.`}
+            </p>
+            <p className={`mt-1 text-sm font-semibold ${isCriticalShiftWindow ? 'text-red-600' : 'text-amber-600'}`}>
+              Max shift uses organization settings ({maxShiftHours}h max, {missedPunchThresholdHours}h missed punch threshold).
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                onClick={handleClockOut}
+                disabled={actionLoading}
+                className={`px-4 py-2 rounded-xl text-sm font-black text-white transition-colors ${isCriticalShiftWindow ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'} disabled:opacity-50`}
+              >
+                Clock out now
+              </button>
+              <button
+                onClick={() => router.push('/dashboard?tab=requests')}
+                className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors ${isCriticalShiftWindow ? 'border-red-300 text-red-700 bg-white hover:bg-red-100' : 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100'}`}
+              >
+                Request correction
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showAutoClockOutNotice && !activeSession && (
+          <div className="mb-8 p-5 rounded-2xl border border-blue-200 bg-blue-50 shadow-sm">
+            <p className="font-black text-blue-700">
+              This session was automatically clocked out after reaching the max shift limit ({maxShiftHours}h).
+            </p>
+            <p className="mt-1 text-sm font-semibold text-blue-600">
+              If you were still working, submit a correction request so your manager can review it.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                onClick={() => router.push('/dashboard?tab=requests')}
+                className="px-4 py-2 rounded-xl text-sm font-black border border-blue-300 text-blue-700 bg-white hover:bg-blue-100 transition-colors"
+              >
+                Request correction
+              </button>
+              <button
+                onClick={() => setShowAutoClockOutNotice(false)}
+                className="px-4 py-2 rounded-xl text-sm font-black text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         )}
 
