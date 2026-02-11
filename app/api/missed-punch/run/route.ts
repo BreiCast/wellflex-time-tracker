@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
     const flaggedSessionIds = new Set((existingFlags || []).map((f: any) => f.time_session_id))
 
     const flagged: string[] = []
+    const autoClockedOut: string[] = []
     const skipped: string[] = []
 
     for (const session of longRunningSessions) {
@@ -116,6 +117,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const autoClockOutAt = new Date(new Date(session.clock_in_at).getTime() + thresholdMs).toISOString()
+
       // Create missed punch flag
       const { error: flagError } = await supabase
         .from('missed_punch_flags' as any)
@@ -123,26 +126,70 @@ export async function POST(request: NextRequest) {
           user_id: session.user_id,
           time_session_id: session.id,
           team_id: session.team_id,
-          flag_reason: flagReason
+          flag_reason: `${flagReason} (auto clock-out applied at ${autoClockOutAt})`
         })
 
       if (flagError) {
         console.error(`[MISSED-PUNCH] Failed to flag session ${session.id}:`, flagError)
         skipped.push(`Session ${session.id}: ${flagError.message}`)
-      } else {
-        flagged.push(`Session ${session.id} (User: ${session.user_id})`)
+        continue
       }
+
+      // End any active break segment at the same auto clock-out timestamp
+      const { error: breakEndError } = await supabase
+        .from('break_segments')
+        .update({ break_end_at: autoClockOutAt })
+        .eq('time_session_id', session.id)
+        .is('break_end_at', null)
+
+      if (breakEndError) {
+        console.error(`[MISSED-PUNCH] Failed to end break for session ${session.id}:`, breakEndError)
+        skipped.push(`Session ${session.id}: ${breakEndError.message}`)
+        continue
+      }
+
+      // Auto clock out the time session
+      const { error: clockOutError } = await supabase
+        .from('time_sessions')
+        .update({ clock_out_at: autoClockOutAt })
+        .eq('id', session.id)
+        .is('clock_out_at', null)
+
+      if (clockOutError) {
+        console.error(`[MISSED-PUNCH] Failed to auto clock out session ${session.id}:`, clockOutError)
+        skipped.push(`Session ${session.id}: ${clockOutError.message}`)
+        continue
+      }
+
+      const noteContent = `[Auto Clock-Out] Session automatically clocked out after ${thresholdHours} hours to prevent an open shift.`
+      const { error: noteError } = await supabase
+        .from('notes')
+        .insert({
+          time_session_id: session.id,
+          content: noteContent,
+          created_by: session.user_id,
+        })
+
+      if (noteError) {
+        console.error(`[MISSED-PUNCH] Failed to create note for session ${session.id}:`, noteError)
+        skipped.push(`Session ${session.id}: note creation failed (${noteError.message})`)
+      }
+
+      flagged.push(`Session ${session.id} (User: ${session.user_id})`)
+      autoClockedOut.push(`Session ${session.id} auto clocked out at ${autoClockOutAt}`)
     }
 
     const totalTime = Date.now() - startTime
-    console.log(`[PERF] Missed-punch complete: ${totalTime}ms, flagged=${flagged.length}, skipped=${skipped.length}`)
+    console.log(`[PERF] Missed-punch complete: ${totalTime}ms, flagged=${flagged.length}, autoClockedOut=${autoClockedOut.length}, skipped=${skipped.length}`)
 
     return NextResponse.json({
       success: true,
       flagged: flagged.length,
+      autoClockedOut: autoClockedOut.length,
       skipped: skipped.length,
       details: {
         flagged,
+        autoClockedOut,
         skipped
       }
     })
