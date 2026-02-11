@@ -25,3 +25,33 @@ export function getTodayBounds(offsetMinutes: number = 0): { start: string; end:
     end: new Date(endMs).toISOString(),
   }
 }
+
+/**
+ * Compute day bounds for a local calendar date (YYYY-MM-DD) for a viewer's UTC offset.
+ * Invalid dates fall back to today's bounds.
+ */
+export function getDayBounds(
+  targetDate: string | null | undefined,
+  offsetMinutes: number = 0
+): { start: string; end: string } {
+  if (!targetDate) return getTodayBounds(offsetMinutes)
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(targetDate)
+  if (!match) return getTodayBounds(offsetMinutes)
+
+  const year = Number(match[1])
+  const monthIndex = Number(match[2]) - 1
+  const day = Number(match[3])
+
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) {
+    return getTodayBounds(offsetMinutes)
+  }
+
+  const startMs = Date.UTC(year, monthIndex, day, 0, 0, 0, 0) - offsetMinutes * 60 * 1000
+  const endMs = startMs + 24 * 60 * 60 * 1000 - 1
+
+  return {
+    start: new Date(startMs).toISOString(),
+    end: new Date(endMs).toISOString(),
+  }
+}

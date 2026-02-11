@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
-import { getTodayBounds } from '@/lib/utils/date'
+import { getDayBounds } from '@/lib/utils/date'
 
 export type LiveStatusValue = 'Working' | 'On break' | 'Not working' | 'Unknown'
 
@@ -146,7 +146,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ agents: [] })
     }
 
-    const { start: todayStart, end: todayEnd } = getTodayBounds(offsetMinutes)
+    const targetDate = searchParams.get('date')
+    const { start: dayStart, end: dayEnd } = getDayBounds(targetDate, offsetMinutes)
 
     const { data: teamMembers, error: tmError } = await supabase
       .from('team_members')
@@ -201,8 +202,8 @@ export async function GET(request: NextRequest) {
       .select('id, user_id, team_id, clock_in_at, clock_out_at')
       .in('user_id', Array.from(userIds))
       .in('team_id', teamIdsToUse)
-      .gte('clock_in_at', todayStart)
-      .lte('clock_in_at', todayEnd)
+      .gte('clock_in_at', dayStart)
+      .lte('clock_in_at', dayEnd)
 
     if (sessionsError) return NextResponse.json({ error: sessionsError.message }, { status: 400 })
 
