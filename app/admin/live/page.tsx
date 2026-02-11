@@ -55,6 +55,27 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: 'last', label: 'Last activity' },
 ]
 
+function toLocalDateInputValue(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
+  return local.toISOString().slice(0, 10)
+}
+
+function shiftDate(dateValue: string, deltaDays: number): string {
+  const parsed = new Date(`${dateValue}T12:00:00`)
+  parsed.setDate(parsed.getDate() + deltaDays)
+  return toLocalDateInputValue(parsed)
+}
+
+function formatSelectedDateLabel(dateValue: string): string {
+  const d = new Date(`${dateValue}T12:00:00`)
+  return d.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 function apiToDisplayStatus(api: ApiStatus): DisplayStatus {
   if (api === 'Working' || api === 'On break') return api
   if (api === 'Not working') return 'Offline'
@@ -136,6 +157,10 @@ export default function AdminLivePage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [sortBy, setSortBy] = useState<string>('status')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateInputValue(new Date()))
+
+  const todayDateValue = useMemo(() => toLocalDateInputValue(new Date()), [])
+  const isSelectedDateToday = selectedDate === todayDateValue
 
   const fetchAgents = useCallback(async () => {
     const supabase = createClient()
@@ -144,8 +169,9 @@ export default function AdminLivePage() {
 
     setListLoading(true)
     const params = new URLSearchParams()
-    // Send viewer's timezone offset so the API computes "today" in local time
+    // Send viewer's timezone offset so the API computes day bounds in local time
     params.set('offset_minutes', String(-new Date().getTimezoneOffset()))
+    params.set('date', selectedDate)
     if (teamFilter) params.set('team_id', teamFilter)
     if (statusFilter && statusFilter !== 'available' && statusFilter !== 'Not tracking') {
       if (statusFilter === 'Away') params.set('status', 'Unknown')
@@ -164,7 +190,7 @@ export default function AdminLivePage() {
       setLastUpdated(new Date())
     }
     setListLoading(false)
-  }, [teamFilter, statusFilter, searchQuery])
+  }, [teamFilter, statusFilter, searchQuery, selectedDate])
 
   useEffect(() => {
     const loadData = async () => {
@@ -288,7 +314,9 @@ export default function AdminLivePage() {
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-1">Live Status</h1>
-            <p className="text-slate-500 font-medium">Who’s working right now.</p>
+            <p className="text-slate-500 font-medium">
+              {isSelectedDateToday ? 'Who’s working right now.' : `Historical live status for ${formatSelectedDateLabel(selectedDate)}.`}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {lastUpdated && (
@@ -308,6 +336,48 @@ export default function AdminLivePage() {
               Refresh
             </button>
           </div>
+        </div>
+
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setSelectedDate((value) => shiftDate(value, -1))}
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+              aria-label="Previous day"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              max={todayDateValue}
+              onChange={(e) => setSelectedDate(e.target.value || todayDateValue)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setSelectedDate((value) => shiftDate(value, 1))}
+              disabled={isSelectedDateToday}
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              aria-label="Next day"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          {!isSelectedDateToday && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(todayDateValue)}
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50"
+            >
+              Back to today
+            </button>
+          )}
         </div>
 
         {/* Toolbar: team, status filters, search, sort */}
