@@ -13,6 +13,9 @@ export interface TodaySegment {
   start_at: string
   end_at: string | null
   break_type?: 'BREAK' | 'LUNCH'
+  team_id?: string
+  team_name?: string
+  team_color?: string
 }
 
 export interface LiveStatusAgent {
@@ -20,6 +23,7 @@ export interface LiveStatusAgent {
   name: string
   teamId: string
   teamName: string
+  teamIds: string[]
   status: LiveStatusValue
   since: string | null
   todayTotalMinutes: number
@@ -40,12 +44,20 @@ export interface CoverageByTeam {
 
 // getTodayUTC removed – now using shared getTodayBounds from @/lib/utils/date
 
-type SessionRow = { id: string; clock_in_at: string; clock_out_at: string | null }
+type SessionRow = {
+  id: string
+  user_id: string
+  team_id: string | null
+  clock_in_at: string
+  clock_out_at: string | null
+}
 type BreakRow = { time_session_id: string; break_type: 'BREAK' | 'LUNCH'; break_start_at: string; break_end_at: string | null }
+type TeamMeta = { name: string; color: string }
 
 function buildTodaySegments(
   userSessions: SessionRow[],
   allBreaks: BreakRow[],
+  teamMetaById: Map<string, TeamMeta>,
   nowIso: string
 ): TodaySegment[] {
   const segments: TodaySegment[] = []
@@ -61,7 +73,15 @@ function buildTodaySegments(
     for (const b of sessionBreaks) {
       if (new Date(b.break_start_at).getTime() <= new Date(prevEnd).getTime()) continue
       const workEnd = b.break_start_at
-      segments.push({ type: 'work', start_at: prevEnd, end_at: workEnd })
+      const teamMeta = sess.team_id ? teamMetaById.get(sess.team_id) : undefined
+      segments.push({
+        type: 'work',
+        start_at: prevEnd,
+        end_at: workEnd,
+        team_id: sess.team_id ?? undefined,
+        team_name: teamMeta?.name,
+        team_color: teamMeta?.color,
+      })
       const breakEnd = b.break_end_at ?? nowIso
       segments.push({
         type: 'break',
@@ -72,7 +92,15 @@ function buildTodaySegments(
       prevEnd = breakEnd
     }
     if (new Date(prevEnd).getTime() < new Date(clockOut).getTime()) {
-      segments.push({ type: 'work', start_at: prevEnd, end_at: clockOut })
+      const teamMeta = sess.team_id ? teamMetaById.get(sess.team_id) : undefined
+      segments.push({
+        type: 'work',
+        start_at: prevEnd,
+        end_at: clockOut,
+        team_id: sess.team_id ?? undefined,
+        team_name: teamMeta?.name,
+        team_color: teamMeta?.color,
+      })
     }
   }
   return segments.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
@@ -122,22 +150,32 @@ export async function GET(request: NextRequest) {
 
     const { data: teamMembers, error: tmError } = await supabase
       .from('team_members')
-      .select('user_id, team_id, teams(id, name, min_working_count)')
+      .select('user_id, team_id, teams(id, name, color, min_working_count)')
       .in('team_id', teamIdsToUse)
 
     if (tmError) return NextResponse.json({ error: tmError.message }, { status: 400 })
 
-    const byUserAndTeam = new Map<string, { teamId: string; teamName: string }>()
+    const teamMetaById = new Map<string, TeamMeta>()
     const teamMinWorking = new Map<string, number | null>()
     const userIds = new Set<string>()
+    const teamIdsByUser = new Map<string, Set<string>>()
     for (const row of teamMembers || []) {
-      // Cast via unknown to handle min_working_count which may not be in generated types yet
-      const tm = row as unknown as { user_id: string; team_id: string; teams: { id: string; name: string; min_working_count?: number | null } | null }
+      // Cast via unknown to handle properties that may not be in generated types yet
+      const tm = row as unknown as {
+        user_id: string
+        team_id: string
+        teams: { id: string; name: string; color?: string | null; min_working_count?: number | null } | null
+      }
       userIds.add(tm.user_id)
-      byUserAndTeam.set(`${tm.user_id}:${tm.team_id}`, {
-        teamId: tm.team_id,
-        teamName: (tm.teams && tm.teams.name) || 'Unknown',
-      })
+      if (!teamIdsByUser.has(tm.user_id)) teamIdsByUser.set(tm.user_id, new Set())
+      teamIdsByUser.get(tm.user_id)!.add(tm.team_id)
+
+      if (!teamMetaById.has(tm.team_id)) {
+        teamMetaById.set(tm.team_id, {
+          name: (tm.teams && tm.teams.name) || 'Unknown',
+          color: tm.teams?.color || '#6366f1',
+        })
+      }
       if (tm.teams && !teamMinWorking.has(tm.team_id)) {
         teamMinWorking.set(tm.team_id, tm.teams.min_working_count ?? null)
       }
@@ -162,6 +200,7 @@ export async function GET(request: NextRequest) {
       .from('time_sessions')
       .select('id, user_id, team_id, clock_in_at, clock_out_at')
       .in('user_id', Array.from(userIds))
+      .in('team_id', teamIdsToUse)
       .gte('clock_in_at', todayStart)
       .lte('clock_in_at', todayEnd)
 
@@ -181,19 +220,16 @@ export async function GET(request: NextRequest) {
     const nowIso = now.toISOString()
     const agents: LiveStatusAgent[] = []
 
-    for (const row of teamMembers || []) {
-      const tm = row as unknown as { user_id: string; team_id: string; teams: { id: string; name: string } | null }
-      const userId = tm.user_id
-      const teamId = tm.team_id
-      const teamName = (tm.teams && tm.teams.name) || 'Unknown'
+    const allSessions = (sessions || []) as SessionRow[]
+
+    for (const userId of userIds) {
+      const userTeamIds = Array.from(teamIdsByUser.get(userId) || [])
       const userInfo = userMap.get(userId)
       const name = (userInfo?.full_name || userInfo?.email || 'Unknown').trim()
 
       if (filterSearch && !name.toLowerCase().includes(filterSearch)) continue
 
-      const userSessions = (sessions || []).filter(
-        (s: { user_id: string; team_id: string }) => s.user_id === userId && s.team_id === teamId
-      ) as { id: string; user_id: string; team_id: string; clock_in_at: string; clock_out_at: string | null }[]
+      const userSessions = allSessions.filter((s) => s.user_id === userId)
 
       const activeSession = userSessions.find(s => s.clock_out_at == null) || null
       const activeBreakRow = activeSession
@@ -240,17 +276,47 @@ export async function GET(request: NextRequest) {
 
       if (filterStatus && status !== filterStatus) continue
 
+      const teamMinutes = new Map<string, number>()
+      for (const sess of userSessions) {
+        if (!sess.team_id) continue
+        const clockIn = new Date(sess.clock_in_at).getTime()
+        const clockOut = sess.clock_out_at ? new Date(sess.clock_out_at).getTime() : now.getTime()
+        const sessionMinutes = Math.floor((clockOut - clockIn) / (1000 * 60))
+        const sessionBreaks = breaks.filter(b => b.time_session_id === sess.id && b.break_end_at != null)
+        let breakMinutes = 0
+        for (const b of sessionBreaks) {
+          breakMinutes += Math.floor(
+            (new Date(b.break_end_at!).getTime() - new Date(b.break_start_at).getTime()) / (1000 * 60)
+          )
+        }
+        const workedMinutes = Math.max(0, sessionMinutes - breakMinutes)
+        teamMinutes.set(sess.team_id, (teamMinutes.get(sess.team_id) || 0) + workedMinutes)
+      }
+
+      const primaryTeamId = (() => {
+        if (activeSession?.team_id) return activeSession.team_id
+        if (teamMinutes.size > 0) {
+          return [...teamMinutes.entries()].sort((a, b) => b[1] - a[1])[0][0]
+        }
+        return userTeamIds
+          .sort((a, b) => (teamMetaById.get(a)?.name || '').localeCompare(teamMetaById.get(b)?.name || ''))[0] || ''
+      })()
+
+      const primaryTeamName = teamMetaById.get(primaryTeamId)?.name || 'Unknown'
+
       const today_segments = buildTodaySegments(
-        userSessions as SessionRow[],
+        userSessions,
         breaks as BreakRow[],
+        teamMetaById,
         nowIso
       )
 
       const agent: LiveStatusAgent = {
         userId,
         name,
-        teamId,
-        teamName,
+        teamId: primaryTeamId,
+        teamName: primaryTeamName,
+        teamIds: userTeamIds,
         status,
         since,
         todayTotalMinutes,
@@ -267,21 +333,17 @@ export async function GET(request: NextRequest) {
     }
 
     const coverage_by_team: CoverageByTeam[] = []
-    const teamCoverageMap = new Map<string, { teamName: string; total: number; working: number; onBreak: number }>()
-    for (const a of agents) {
-      const cur = teamCoverageMap.get(a.teamId) ?? { teamName: a.teamName, total: 0, working: 0, onBreak: 0 }
-      cur.total += 1
-      if (a.status === 'Working') cur.working += 1
-      if (a.status === 'On break') cur.onBreak += 1
-      teamCoverageMap.set(a.teamId, cur)
-    }
-    for (const [teamId, data] of teamCoverageMap) {
+    for (const teamId of teamIdsToUse) {
+      const teamName = teamMetaById.get(teamId)?.name || 'Unknown'
+      const teamAgents = agents.filter(a => a.teamIds.includes(teamId))
+      const workingCount = teamAgents.filter(a => a.status === 'Working').length
+      const onBreakCount = teamAgents.filter(a => a.status === 'On break').length
       coverage_by_team.push({
         teamId,
-        teamName: data.teamName,
-        total_agents: data.total,
-        working_count: data.working,
-        on_break_count: data.onBreak,
+        teamName,
+        total_agents: teamAgents.length,
+        working_count: workingCount,
+        on_break_count: onBreakCount,
         min_working_count: teamMinWorking.get(teamId) ?? null,
       })
     }
