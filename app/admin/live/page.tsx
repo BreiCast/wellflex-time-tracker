@@ -18,6 +18,9 @@ interface TodaySegment {
   start_at: string
   end_at: string | null
   break_type?: 'BREAK' | 'LUNCH'
+  team_id?: string
+  team_name?: string
+  team_color?: string
 }
 
 interface LiveStatusAgent {
@@ -26,6 +29,7 @@ interface LiveStatusAgent {
   teamId: string
   teamName: string
   status: ApiStatus
+  teamIds: string[]
   since: string | null
   todayTotalMinutes: number
   break_type?: 'BREAK' | 'LUNCH'
@@ -90,6 +94,32 @@ function getStatusPillClass(status: DisplayStatus): string {
     default:
       return `${base} bg-slate-100 text-slate-400`
   }
+}
+
+
+function formatSegmentDuration(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const minutes = Math.max(0, Math.floor((end - start) / (1000 * 60)))
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  return `${minutes}m`
+}
+
+function formatRange(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso)
+  const end = endIso ? new Date(endIso) : new Date()
+  return `${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+}
+
+function getSegmentVisual(seg: TodaySegment): { className: string; style?: { backgroundColor: string } } {
+  if (seg.type === 'break') {
+    if (seg.break_type === 'LUNCH') return { className: 'bg-orange-300 border border-orange-400' }
+    return { className: 'bg-amber-200 border border-amber-300' }
+  }
+  if (seg.team_color) {
+    return { className: 'border border-slate-400/40', style: { backgroundColor: seg.team_color } }
+  }
+  return { className: 'bg-slate-300 border border-slate-400/40' }
 }
 
 export default function AdminLivePage() {
@@ -391,6 +421,20 @@ export default function AdminLivePage() {
           </div>
         )}
 
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm font-medium text-slate-600">
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-amber-200 border border-amber-300" />Break</span>
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-orange-300 border border-orange-400" />Lunch</span>
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-slate-300 border border-slate-400/40" />Other</span>
+          {Array.from(new Map(filteredAndSortedAgents.flatMap((agent) => (agent.today_segments || [])
+            .filter((seg) => seg.type === 'work' && seg.team_id && seg.team_name)
+            .map((seg) => [seg.team_id!, { id: seg.team_id!, name: seg.team_name!, color: seg.team_color || '#6366f1' }]))).values()).slice(0, 8).map((team) => (
+            <span key={team.id} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700">
+              <span className="h-2.5 w-2.5 rounded-full border border-slate-400/40" style={{ backgroundColor: team.color }} />
+              {team.name}
+            </span>
+          ))}
+        </div>
+
         {/* Content: list of employee rows */}
         <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
           {listLoading ? (
@@ -414,7 +458,7 @@ export default function AdminLivePage() {
                 const cov = coverageMap.get(agent.teamId)
                 return (
                   <LiveStatusRow
-                    key={`${agent.userId}-${agent.teamId}`}
+                    key={agent.userId}
                     agent={agent}
                     displayStatus={agent.displayStatus}
                     workingCount={cov?.working_count ?? 0}
@@ -489,7 +533,7 @@ function LiveStatusRow({
         <p className="text-base font-bold text-slate-900 truncate" title={agent.name}>
           {agent.name}
         </p>
-        <p className="text-sm font-medium text-slate-500">{agent.teamName}</p>
+        <p className="text-sm font-medium text-slate-500">{agent.teamName}{agent.teamIds.length > 1 ? ' · Multiple teams' : ''}</p>
       </div>
 
       {/* 3. Since / last activity; break duration when On break */}
@@ -511,7 +555,6 @@ function LiveStatusRow({
           since={agent.since}
           status={agent.status}
           todaySegments={agent.today_segments}
-          breakType={agent.break_type}
         />
       </div>
     </li>
@@ -523,12 +566,10 @@ function TodayTimelineStrip({
   since,
   status,
   todaySegments,
-  breakType,
 }: {
   since: string | null
   status: ApiStatus
   todaySegments?: TodaySegment[] | null
-  breakType?: 'BREAK' | 'LUNCH'
 }) {
   const [now, setNow] = useState(() => new Date())
 
@@ -564,19 +605,21 @@ function TodayTimelineStrip({
             const widthPct = Math.min(1 - leftPct, (endMs - startMs) / totalMs)
             if (widthPct <= 0) return null
             const containsNow = startMs <= nowTime && nowTime < endMs
-            const isBreak = seg.type === 'break'
-            const isLunch = isBreak && seg.break_type === 'LUNCH'
+            const visual = getSegmentVisual(seg)
+            const activityLabel = seg.type === 'break' ? (seg.break_type === 'LUNCH' ? 'Lunch' : 'Break') : 'Work'
+            const rangeLabel = formatRange(seg.start_at, seg.end_at)
+            const durationLabel = formatSegmentDuration(seg.start_at, seg.end_at)
+            const projectLabel = seg.type === 'work' ? (seg.team_name || '—') : null
             return (
               <div
                 key={i}
-                className={`absolute top-0 bottom-0 z-0 rounded-sm ${
-                  isBreak ? (isLunch ? 'bg-orange-300' : 'bg-amber-200') : 'bg-emerald-200'
-                } ${containsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
+                className={`absolute top-0 bottom-0 z-0 rounded-sm ${visual.className} ${containsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
                 style={{
                   left: `${leftPct * 100}%`,
                   width: `${widthPct * 100}%`,
+                  ...visual.style,
                 }}
-                title={isBreak ? (isLunch ? 'Lunch' : 'Break') : 'Work'}
+                title={`${activityLabel}${projectLabel ? `\nProject: ${projectLabel}` : ''}\n${rangeLabel}, ${durationLabel}`}
               />
             )
           })}
@@ -592,16 +635,16 @@ function TodayTimelineStrip({
             hasCurrentBlock && blockStartPct <= nowOffset && blockEndPct >= nowOffset
           if (hasCurrentBlock && blockEndPct > blockStartPct) {
             const isOnBreak = status === 'On break'
-            const isLunch = isOnBreak && breakType === 'LUNCH'
             return (
               <div
                 className={`absolute top-0 bottom-0 z-0 rounded-sm ${
-                  isOnBreak ? (isLunch ? 'bg-orange-300' : 'bg-amber-200') : 'bg-emerald-200'
+                  isOnBreak ? 'bg-amber-200 border border-amber-300' : 'bg-slate-300 border border-slate-400/40'
                 } ${blockContainsNow ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
                 style={{
                   left: `${blockStartPct * 100}%`,
                   width: `${(blockEndPct - blockStartPct) * 100}%`,
                 }}
+                title={`${isOnBreak ? 'Break' : 'Work'}\n${formatRange(since!, now.toISOString())}, ${formatSegmentDuration(since!, now.toISOString())}`}
               />
             )
           }
