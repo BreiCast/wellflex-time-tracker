@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceSupabaseClient()
     const dryRun = request.nextUrl.searchParams.get('dry_run') === 'true'
+    const escalationThresholdHours = parseInt(process.env.MISSED_PUNCH_ESCALATION_THRESHOLD_HOURS || '14', 10)
+    const escalationCooldownMinutes = parseInt(process.env.MISSED_PUNCH_ESCALATION_COOLDOWN_MINUTES || '240', 10)
 
     // Get organization settings
     const { data: orgSettings } = await supabase
@@ -375,6 +377,116 @@ export async function POST(request: NextRequest) {
               }
             } else {
               sent.push(`${user.email}: MISSED_PUNCH_REMINDER (dry run)`)
+            }
+          }
+        }
+      }
+
+
+      // 5. MISSED_PUNCH_ESCALATION (to MANAGER/ADMIN)
+      if (activeSession) {
+        const clockInTime = new Date(activeSession.clock_in_at)
+        const sessionDuration = Math.floor((userNow.getTime() - clockInTime.getTime()) / (1000 * 60))
+        const escalationThresholdMinutes = escalationThresholdHours * 60
+
+        if (sessionDuration >= escalationThresholdMinutes) {
+          const escalationCooldownCutoff = new Date(now.getTime() - escalationCooldownMinutes * 60 * 1000)
+
+          const { data: recentEscalation } = await supabase
+            .from('notification_events' as any)
+            .select('id')
+            .eq('notification_type', 'MISSED_PUNCH_ESCALATION')
+            .eq('status', 'SENT')
+            .contains('payload', {
+              session_id: activeSession.id
+            })
+            .gte('created_at', escalationCooldownCutoff.toISOString())
+            .limit(1)
+            .maybeSingle()
+
+          if (!recentEscalation && activeSession.team_id) {
+            const { data: leadership } = await supabase
+              .from('team_members')
+              .select('role, users!inner(id, email, full_name)')
+              .eq('team_id', activeSession.team_id)
+              .in('role', ['MANAGER', 'ADMIN'])
+
+            const managers = (leadership || [])
+              .map((member: any) => {
+                const leader = Array.isArray(member.users) ? member.users[0] : member.users
+                if (!leader?.id || !leader?.email) {
+                  return null
+                }
+
+                if (leader.id === user.id) {
+                  return null
+                }
+
+                return {
+                  role: member.role,
+                  id: leader.id,
+                  email: leader.email,
+                  full_name: leader.full_name
+                }
+              })
+              .filter(Boolean) as Array<{ role: 'MANAGER' | 'ADMIN'; id: string; email: string; full_name?: string }>
+
+            if (managers.length > 0) {
+              processed.push(`${user.email}: MISSED_PUNCH_ESCALATION x${managers.length}`)
+
+              const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+              const reviewUrl = `${appBaseUrl}/admin/live`
+              const clockOutUrl = `${appBaseUrl}/tracking`
+              const correctionUrl = `${appBaseUrl}/dashboard?tab=requests`
+
+              for (const manager of managers) {
+                if (!dryRun) {
+                  const sentResult = await sendReminderEmail({
+                    userEmail: manager.email,
+                    userName: manager.full_name || manager.email,
+                    notificationType: 'MISSED_PUNCH_ESCALATION',
+                    sessionInfo: {
+                      clockInAt: activeSession.clock_in_at,
+                      durationMinutes: sessionDuration,
+                      employeeName: user.full_name || user.email,
+                      employeeEmail: user.email,
+                      recipientRole: manager.role,
+                      actions: {
+                        reviewUrl,
+                        clockOutUrl,
+                        correctionUrl
+                      }
+                    },
+                    dashboardUrl: reviewUrl
+                  })
+
+                  await supabase
+                    .from('notification_events' as any)
+                    .insert({
+                      user_id: manager.id,
+                      notification_type: 'MISSED_PUNCH_ESCALATION',
+                      status: sentResult.success ? 'SENT' : 'FAILED',
+                      payload: {
+                        session_id: activeSession.id,
+                        team_id: activeSession.team_id,
+                        session_duration_minutes: sessionDuration,
+                        escalated_user_id: user.id,
+                        escalated_user_email: user.email,
+                        escalated_user_name: user.full_name || user.email,
+                        recipient_role: manager.role,
+                        recipient_user_id: manager.id
+                      },
+                      sent_at: sentResult.success ? new Date().toISOString() : null,
+                      error_message: sentResult.error || null
+                    })
+
+                  if (sentResult.success) {
+                    sent.push(`${manager.email}: MISSED_PUNCH_ESCALATION for ${user.email}`)
+                  }
+                } else {
+                  sent.push(`${manager.email}: MISSED_PUNCH_ESCALATION for ${user.email} (dry run)`)
+                }
+              }
             }
           }
         }

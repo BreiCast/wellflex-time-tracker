@@ -51,6 +51,8 @@ export default function NotificationsPage() {
         return '⏰ Break Return Reminder'
       case 'MISSED_PUNCH_REMINDER':
         return '⚠️ Missed Punch Reminder'
+      case 'MISSED_PUNCH_ESCALATION':
+        return '🚨 Missed Punch Escalation'
       default:
         return type
     }

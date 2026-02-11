@@ -3,12 +3,20 @@ import nodemailer from 'nodemailer'
 interface ReminderEmailParams {
   userEmail: string
   userName: string
-  notificationType: 'CLOCK_IN_REMINDER' | 'CLOCK_OUT_REMINDER' | 'BREAK_RETURN_REMINDER' | 'MISSED_PUNCH_REMINDER'
+  notificationType: 'CLOCK_IN_REMINDER' | 'CLOCK_OUT_REMINDER' | 'BREAK_RETURN_REMINDER' | 'MISSED_PUNCH_REMINDER' | 'MISSED_PUNCH_ESCALATION'
   sessionInfo: {
     clockInAt?: string
     durationMinutes?: number
     breakStartAt?: string
     breakDurationMinutes?: number
+    employeeName?: string
+    employeeEmail?: string
+    recipientRole?: 'MANAGER' | 'ADMIN'
+    actions?: {
+      reviewUrl?: string
+      clockOutUrl?: string
+      correctionUrl?: string
+    }
   } | null
   dashboardUrl: string
 }
@@ -211,6 +219,66 @@ export async function sendReminderEmail(params: ReminderEmailParams): Promise<{ 
         </html>
       `
       textContent = `Hi ${userName},\n\nYou have an active time session that has been running for ${sessionDuration}. Please clock out or submit a time correction request.\n\nClock In: ${sessionClockIn}\nDuration: ${sessionDuration}\n\nView dashboard: ${dashboardUrl}\nRequest correction: ${dashboardUrl.replace('/tracking', '/dashboard?tab=requests')}`
+      break
+
+    case 'MISSED_PUNCH_ESCALATION':
+      const escalatedEmployeeName = sessionInfo?.employeeName || 'Unknown employee'
+      const escalatedEmployeeEmail = sessionInfo?.employeeEmail || 'N/A'
+      const escalationDuration = sessionInfo?.durationMinutes ? formatDuration(sessionInfo.durationMinutes) : 'N/A'
+      const escalationClockInTime = sessionInfo?.clockInAt ? formatTime(sessionInfo.clockInAt) : 'N/A'
+      const escalationRole = sessionInfo?.recipientRole || 'MANAGER'
+      const reviewUrl = sessionInfo?.actions?.reviewUrl || dashboardUrl
+      const clockOutUrl = sessionInfo?.actions?.clockOutUrl || dashboardUrl
+      const correctionUrl = sessionInfo?.actions?.correctionUrl || dashboardUrl.replace('/tracking', '/dashboard?tab=requests')
+      subject = `🚨 Escalation: Active session needs review (${escalatedEmployeeName}) - wetrack`
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 640px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">🚨 Missed Punch Escalation</h1>
+            </div>
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+              <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+              <p>This is an escalation alert for a team member with a long-running active session that likely requires intervention.</p>
+              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057; width: 40%;">Recipient Role:</td>
+                    <td style="padding: 8px 0; color: #212529;">${escalationRole}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">Employee:</td>
+                    <td style="padding: 8px 0; color: #212529;">${escalatedEmployeeName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">Employee Email:</td>
+                    <td style="padding: 8px 0; color: #212529;">${escalatedEmployeeEmail}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">Clock In:</td>
+                    <td style="padding: 8px 0; color: #212529;">${escalationClockInTime}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">Elapsed Duration:</td>
+                    <td style="padding: 8px 0; color: #212529;">${escalationDuration}</td>
+                  </tr>
+                </table>
+              </div>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${reviewUrl}" style="background: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 0 6px 10px;">Review Session</a>
+                <a href="${clockOutUrl}" style="background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 0 6px 10px;">Open Tracking</a>
+                <a href="${correctionUrl}" style="background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 0 6px 10px;">Review Requests</a>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+      textContent = `Hi ${userName},\n\nEscalation alert: ${escalatedEmployeeName} (${escalatedEmployeeEmail}) has an active time session that has been running for ${escalationDuration}.\n\nRole: ${escalationRole}\nClock In: ${escalationClockInTime}\nElapsed Duration: ${escalationDuration}\n\nReview session: ${reviewUrl}\nOpen tracking: ${clockOutUrl}\nReview requests: ${correctionUrl}`
       break
   }
 
