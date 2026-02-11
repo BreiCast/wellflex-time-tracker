@@ -616,6 +616,15 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                           {note.content.replace('[Late Clock-In]', '').trim()}
                                         </p>
                                       </div>
+                                    ) : note.content.startsWith('[Auto Clock-Out]') ? (
+                                      <div className="space-y-1">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 uppercase">
+                                          Auto Clock-Out
+                                        </span>
+                                        <p className="text-sm font-medium text-slate-900 mt-1">
+                                          {note.content.replace('[Auto Clock-Out]', '').trim()}
+                                        </p>
+                                      </div>
                                     ) : (
                                       <p className="text-sm font-medium text-slate-900">{note.content}</p>
                                     )}
