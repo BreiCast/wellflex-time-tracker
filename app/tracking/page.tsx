@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getColombiaDateParts, computeLateCheckInColombia } from '@/lib/utils/schedule-helpers'
 import DashboardNav from '@/components/DashboardNav'
 import TeamSelector from '@/components/TeamSelector'
 import TeamSwitcher from '@/components/TeamSwitcher'
@@ -329,7 +330,7 @@ export default function TrackingPage() {
       if (!session) return { isLate: false, scheduledStart: null }
 
       const now = new Date()
-      const dayOfWeek = now.getDay()
+      const dayOfWeek = getColombiaDateParts(now).dayOfWeek
 
       const { data: schedule } = await supabase
         .from('schedules')
@@ -344,12 +345,7 @@ export default function TrackingPage() {
         return { isLate: false, scheduledStart: null }
       }
 
-      const [startHour, startMin] = schedule.start_time.split(':').map(Number)
-      const scheduledStart = new Date(now)
-      scheduledStart.setHours(startHour, startMin, 0, 0)
-
-      const isLate = now > scheduledStart
-
+      const { isLate, scheduledStart } = computeLateCheckInColombia(now, schedule.start_time)
       return { isLate, scheduledStart }
     } catch (err) {
       console.error('Error checking if late:', err)
