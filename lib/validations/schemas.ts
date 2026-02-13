@@ -44,8 +44,11 @@ export const createRequestSchema = z.object({
     )
   }
   
-  // For "Break Duration Adjustment" or "Break Adjustment"
-  if (requestType.includes('BREAK') && requestType.includes('ADJUSTMENT')) {
+  // For "Break/Lunch Duration Adjustment" or "Break/Lunch Adjustment"
+  if (
+    (requestType.includes('BREAK') || requestType.includes('LUNCH')) &&
+    requestType.includes('ADJUSTMENT')
+  ) {
     return (
       requestedData.break_segment_id &&
       typeof requestedData.current_duration_minutes === 'number' &&
@@ -65,7 +68,7 @@ export const createRequestSchema = z.object({
   // For other request types, requested_data is optional
   return true
 }, {
-  message: 'Invalid requested_data for this request type. For break requests, ensure date, time_from, time_to, and break_type are provided. For break adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided. For Leave Early, ensure date, time_from, and time_to are provided.',
+  message: 'Invalid requested_data for this request type. For break/lunch requests, ensure date, time_from, time_to, and break_type are provided. For break/lunch adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided. For Leave Early, ensure date, time_from, and time_to are provided.',
 }).refine((data) => {
   // Leave Early: To Time must be after From Time
   const requestType = data.request_type?.toUpperCase() ?? ''
@@ -106,4 +109,3 @@ export const getTimesheetSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
-

@@ -295,8 +295,8 @@ export async function PATCH(request: NextRequest) {
           }
         }
       }
-      // Handle "Break Duration Adjustment"
-      else if (requestTypeUpper.includes('BREAK') && requestTypeUpper.includes('ADJUSTMENT')) {
+      // Handle "Break/Lunch Duration Adjustment"
+      else if ((requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH')) && requestTypeUpper.includes('ADJUSTMENT')) {
         const breakSegmentId = requestedData.break_segment_id
         const currentDuration = requestedData.current_duration_minutes
         const adjustedDuration = requestedData.adjusted_duration_minutes
