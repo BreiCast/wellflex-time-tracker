@@ -533,6 +533,8 @@ export default function AdminLivePage() {
                     displayStatus={agent.displayStatus}
                     workingCount={cov?.working_count ?? 0}
                     minWorkingCount={cov?.min_working_count ?? null}
+                    displayDate={selectedDate}
+                    isSelectedDateToday={isSelectedDateToday}
                   />
                 )
               })}
@@ -554,11 +556,15 @@ function LiveStatusRow({
   displayStatus,
   workingCount,
   minWorkingCount,
+  displayDate,
+  isSelectedDateToday,
 }: {
   agent: LiveStatusAgent
   displayStatus: DisplayStatus
   workingCount: number
   minWorkingCount: number | null
+  displayDate: string
+  isSelectedDateToday: boolean
 }) {
   const isOnBreak = agent.status === 'On break'
   const sinceLabel = isOnBreak ? (agent.since ? `Break since ${formatSince(agent.since, true)}` : 'Break in progress') : (agent.since ? `Since ${formatSince(agent.since, false)}` : 'Last activity —')
@@ -625,6 +631,8 @@ function LiveStatusRow({
           since={agent.since}
           status={agent.status}
           todaySegments={agent.today_segments}
+          displayDate={displayDate}
+          isSelectedDateToday={isSelectedDateToday}
         />
       </div>
     </li>
@@ -636,10 +644,14 @@ function TodayTimelineStrip({
   since,
   status,
   todaySegments,
+  displayDate,
+  isSelectedDateToday,
 }: {
   since: string | null
   status: ApiStatus
   todaySegments?: TodaySegment[] | null
+  displayDate: string
+  isSelectedDateToday: boolean
 }) {
   const [now, setNow] = useState(() => new Date())
 
@@ -649,15 +661,11 @@ function TodayTimelineStrip({
   }, [])
 
   const startOfDay = useMemo(() => {
-    const d = new Date(now)
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [now])
+    return new Date(displayDate + 'T00:00:00')
+  }, [displayDate])
   const endOfDay = useMemo(() => {
-    const d = new Date(now)
-    d.setHours(23, 59, 59, 999)
-    return d
-  }, [now])
+    return new Date(displayDate + 'T23:59:59.999')
+  }, [displayDate])
   const totalMs = endOfDay.getTime() - startOfDay.getTime()
   const nowOffset = Math.max(0, Math.min(1, (now.getTime() - startOfDay.getTime()) / totalMs))
   const nowTime = now.getTime()
@@ -670,11 +678,15 @@ function TodayTimelineStrip({
         <>
           {todaySegments!.map((seg, i) => {
             const startMs = new Date(seg.start_at).getTime()
-            const endMs = seg.end_at ? new Date(seg.end_at).getTime() : nowTime
+            const endMs = seg.end_at
+              ? new Date(seg.end_at).getTime()
+              : isSelectedDateToday
+                ? nowTime
+                : endOfDay.getTime()
             const leftPct = Math.max(0, (startMs - startOfDay.getTime()) / totalMs)
             const widthPct = Math.min(1 - leftPct, (endMs - startMs) / totalMs)
             if (widthPct <= 0) return null
-            const containsNow = startMs <= nowTime && nowTime < endMs
+            const containsNow = isSelectedDateToday && startMs <= nowTime && nowTime < endMs
             const visual = getSegmentVisual(seg)
             const activityLabel = seg.type === 'break' ? (seg.break_type === 'LUNCH' ? 'Lunch' : 'Break') : 'Work'
             const rangeLabel = formatRange(seg.start_at, seg.end_at)
@@ -700,9 +712,13 @@ function TodayTimelineStrip({
           const blockStartPct = hasCurrentBlock
             ? Math.max(0, (new Date(since).getTime() - startOfDay.getTime()) / totalMs)
             : 0
-          const blockEndPct = hasCurrentBlock ? nowOffset : 0
+          const blockEndPct = hasCurrentBlock
+            ? isSelectedDateToday
+              ? nowOffset
+              : 1
+            : 0
           const blockContainsNow =
-            hasCurrentBlock && blockStartPct <= nowOffset && blockEndPct >= nowOffset
+            hasCurrentBlock && isSelectedDateToday && blockStartPct <= nowOffset && blockEndPct >= nowOffset
           if (hasCurrentBlock && blockEndPct > blockStartPct) {
             const isOnBreak = status === 'On break'
             return (
@@ -721,15 +737,16 @@ function TodayTimelineStrip({
           return null
         })()
       )}
-      {/* Vertical "Now" line */}
-      <div
-        className="absolute top-0 bottom-0 w-0.5 bg-indigo-500 z-10"
-        style={{ left: `${nowOffset * 100}%` }}
-      >
-        <span className="absolute -top-5 left-0 text-[10px] font-bold text-indigo-600 whitespace-nowrap">
-          Now
-        </span>
-      </div>
+      {isSelectedDateToday && (
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-indigo-500 z-10"
+          style={{ left: `${nowOffset * 100}%` }}
+        >
+          <span className="absolute -top-5 left-0 text-[10px] font-bold text-indigo-600 whitespace-nowrap">
+            Now
+          </span>
+        </div>
+      )}
       {!useMultiBlock && !((status === 'Working' || status === 'On break') && since) && (
         <div className="absolute inset-0 flex items-center justify-center z-0">
           <span className="text-xs font-medium text-slate-400">No activity today</span>
