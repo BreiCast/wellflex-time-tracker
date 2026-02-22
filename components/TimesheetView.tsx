@@ -135,7 +135,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   }, [selectedUserId, teamId, dateRange])
 
   const loadCrossTeamTotals = useCallback(async () => {
-    if (selectedUserId === 'all' || !teamId || teamId === '') {
+    if (selectedUserId === 'all' || !selectedUserId) {
       setCrossTeamTotals(null)
       return
     }
@@ -165,7 +165,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     } catch {
       setCrossTeamTotals(null)
     }
-  }, [selectedUserId, teamId, dateRange])
+  }, [selectedUserId, dateRange])
 
   useEffect(() => {
     // Only require teamId if it's not empty (not "All Teams")
@@ -179,10 +179,14 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
         }
       }
     } else if (teamId === '') {
-      // When "All Teams" is selected, show empty state or aggregate
+      // When "All Teams" is selected, show empty state for detail but still fetch cross-team totals if a member is selected
       setTimesheet([])
       setLoading(false)
-      setCrossTeamTotals(null)
+      if (selectedUserId && selectedUserId !== 'all') {
+        loadCrossTeamTotals()
+      } else {
+        setCrossTeamTotals(null)
+      }
     }
   }, [selectedUserId, teamId, dateRange, loadTimesheet, loadCrossTeamTotals])
 
@@ -191,9 +195,9 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     const handleRequestApproved = () => {
       if (teamId && teamId !== '' && selectedUserId) {
         loadTimesheet()
-        if (selectedUserId !== 'all') {
-          loadCrossTeamTotals()
-        }
+      }
+      if (selectedUserId && selectedUserId !== 'all') {
+        loadCrossTeamTotals()
       }
     }
 
