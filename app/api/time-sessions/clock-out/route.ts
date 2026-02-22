@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { clockOutSchema } from '@/lib/validations/schemas'
+import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
@@ -19,12 +20,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { time_session_id } = clockOutSchema.parse(body)
 
-    // Verify session belongs to user
+    // Load target session and verify permissions
     const { data: session } = await supabase
       .from('time_sessions')
-      .select('id, clock_out_at')
+      .select('id, user_id, team_id, clock_out_at')
       .eq('id', time_session_id)
-      .eq('user_id', user.id)
       .single()
 
     if (!session) {
@@ -34,7 +34,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (session.clock_out_at) {
+    const targetSession = session as {
+      id: string
+      user_id: string
+      team_id: string | null
+      clock_out_at: string | null
+    }
+
+    const canClockOutOwnSession = targetSession.user_id === user.id
+    let canManageTargetSession = false
+
+    if (!canClockOutOwnSession) {
+      if (isSuperAdmin(user)) {
+        canManageTargetSession = true
+      } else if (targetSession.team_id) {
+        const { data: teamMember } = await supabase
+          .from('team_members')
+          .select('role')
+          .eq('team_id', targetSession.team_id)
+          .eq('user_id', user.id)
+          .single()
+
+        const role = (teamMember as { role?: string } | null)?.role
+        canManageTargetSession = role === 'ADMIN' || role === 'MANAGER'
+      }
+
+      if (!canManageTargetSession) {
+        return NextResponse.json(
+          { error: 'Only managers and admins can clock out other users on their team' },
+          { status: 403 }
+        )
+      }
+    }
+
+    if (targetSession.clock_out_at) {
       return NextResponse.json(
         { error: 'Session already clocked out' },
         { status: 400 }
@@ -69,4 +102,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getColombiaDateParts, computeLateCheckInColombia } from '@/lib/utils/schedule-helpers'
 import LateClockInModal from './LateClockInModal'
 
 interface ClockInOutProps {
@@ -38,7 +39,7 @@ export default function ClockInOut({ teamId, onSessionStart }: ClockInOutProps) 
       if (!session) return { isLate: false, scheduledStart: null }
 
       const now = new Date()
-      const dayOfWeek = now.getDay()
+      const dayOfWeek = getColombiaDateParts(now).dayOfWeek
 
       const { data: schedule } = await supabase
         .from('schedules')
@@ -53,12 +54,7 @@ export default function ClockInOut({ teamId, onSessionStart }: ClockInOutProps) 
         return { isLate: false, scheduledStart: null }
       }
 
-      const [startHour, startMin] = schedule.start_time.split(':').map(Number)
-      const scheduledStart = new Date(now)
-      scheduledStart.setHours(startHour, startMin, 0, 0)
-
-      const isLate = now > scheduledStart
-
+      const { isLate, scheduledStart } = computeLateCheckInColombia(now, schedule.start_time)
       return { isLate, scheduledStart }
     } catch (err) {
       console.error('Error checking if late:', err)

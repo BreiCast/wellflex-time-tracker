@@ -71,8 +71,8 @@ export function getAdjustmentTypeFromRequestType(
     return 'ADD_TIME'
   }
 
-  // Break adjustment requests
-  if (upperType.includes('BREAK') && upperType.includes('ADJUSTMENT')) {
+  // Break/Lunch adjustment requests
+  if ((upperType.includes('BREAK') || upperType.includes('LUNCH')) && upperType.includes('ADJUSTMENT')) {
     // This will be determined by calculateBreakDurationDifference
     return 'SUBTRACT_TIME' // Default, but actual type depends on difference
   }

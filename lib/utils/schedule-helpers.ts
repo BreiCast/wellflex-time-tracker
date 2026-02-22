@@ -1,5 +1,48 @@
 /**
- * Check if a clock-in time is late compared to the scheduled start time
+ * Colombia uses America/Bogota (UTC-5, no DST).
+ * Offset in minutes: local time = UTC + 5 hours for "date in Colombia" when deriving calendar date.
+ */
+export const COLOMBIA_UTC_OFFSET_MINUTES = 300
+
+export interface ColombiaDateParts {
+  y: number
+  m: number
+  d: number
+  dayOfWeek: number
+}
+
+/**
+ * Get the calendar date and day-of-week in Colombian timezone for a given instant.
+ */
+export function getColombiaDateParts(instant: Date): ColombiaDateParts {
+  const colombiaAdjusted = new Date(instant.getTime() + COLOMBIA_UTC_OFFSET_MINUTES * 60 * 1000)
+  const y = colombiaAdjusted.getUTCFullYear()
+  const m = colombiaAdjusted.getUTCMonth()
+  const d = colombiaAdjusted.getUTCDate()
+  const dayOfWeek = new Date(Date.UTC(y, m, d, 12, 0, 0)).getUTCDay()
+  return { y, m, d, dayOfWeek }
+}
+
+/**
+ * Pure function: compute whether clock-in is late and the scheduled start instant,
+ * interpreting the schedule in Colombian timezone.
+ */
+export function computeLateCheckInColombia(
+  clockInTime: Date,
+  startTimeStr: string
+): { isLate: boolean; scheduledStart: Date } {
+  const parts = getColombiaDateParts(clockInTime)
+  const [startHour, startMin] = startTimeStr.split(':').map(Number)
+  // That calendar day at start_time in Colombia → UTC instant (09:00 Colombia = 14:00 UTC)
+  const scheduledStart = new Date(
+    Date.UTC(parts.y, parts.m, parts.d, startHour + 5, startMin, 0)
+  )
+  const isLate = clockInTime > scheduledStart
+  return { isLate, scheduledStart }
+}
+
+/**
+ * Check if a clock-in time is late compared to the scheduled start time (Colombian timezone).
  * @param supabase - Supabase client instance
  * @param userId - User ID
  * @param teamId - Team ID
@@ -12,8 +55,8 @@ export async function checkIfLateClockIn(
   teamId: string,
   clockInTime: Date
 ): Promise<{ isLate: boolean; scheduledStart: Date | null; gracePeriodMinutes: number }> {
-  // Get today's schedule for user and team
-  const dayOfWeek = clockInTime.getDay()
+  const { dayOfWeek } = getColombiaDateParts(clockInTime)
+
   const { data: schedule } = await supabase
     .from('schedules')
     .select('start_time')
@@ -24,21 +67,10 @@ export async function checkIfLateClockIn(
     .single()
 
   if (!schedule) {
-    // No schedule means not late
     return { isLate: false, scheduledStart: null, gracePeriodMinutes: 0 }
   }
 
-  // Parse scheduled start time
-  const [startHour, startMin] = schedule.start_time.split(':').map(Number)
-  const scheduledStart = new Date(clockInTime)
-  scheduledStart.setHours(startHour, startMin, 0, 0)
-
-  // Get grace period from org settings (default 0 - no grace period)
-  // For now, we'll use 0 as default. Can be extended later with org settings
+  const { isLate, scheduledStart } = computeLateCheckInColombia(clockInTime, schedule.start_time)
   const gracePeriodMinutes = 0
-  const gracePeriodEnd = new Date(scheduledStart.getTime() + gracePeriodMinutes * 60 * 1000)
-
-  const isLate = clockInTime > gracePeriodEnd
-
   return { isLate, scheduledStart, gracePeriodMinutes }
 }
