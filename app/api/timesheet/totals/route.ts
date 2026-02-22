@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
 
     const { user_id: targetUserId, start_date, end_date } = getTimesheetTotalsSchema.parse(params)
 
+    let allowedTeamIds: string[] | null = null
+
     // If requesting another user, verify requester is admin/manager of at least one team the target is in
     if (targetUserId !== user.id) {
       const isSuperAdminUser = isSuperAdmin(user)
@@ -41,8 +43,8 @@ export async function GET(request: NextRequest) {
           .select('team_id')
           .eq('user_id', targetUserId)
 
-        const teamIds = (targetTeams || []).map((t: any) => t.team_id)
-        if (teamIds.length === 0) {
+        const targetTeamIds = (targetTeams || []).map((t: any) => t.team_id)
+        if (targetTeamIds.length === 0) {
           return NextResponse.json(
             { error: 'User is not in any team' },
             { status: 404 }
@@ -51,24 +53,28 @@ export async function GET(request: NextRequest) {
 
         const { data: requesterRoles } = await supabase
           .from('team_members')
-          .select('role')
+          .select('team_id, role')
           .eq('user_id', user.id)
-          .in('team_id', teamIds)
+          .in('team_id', targetTeamIds)
 
-        const canView = (requesterRoles || []).some(
-          (r: any) => r.role === 'MANAGER' || r.role === 'ADMIN'
-        )
-        if (!canView) {
+        const allowed = (requesterRoles || [])
+          .filter((r: any) => r.role === 'MANAGER' || r.role === 'ADMIN')
+          .map((r: any) => r.team_id)
+
+        if (allowed.length === 0) {
           return NextResponse.json(
             { error: 'Only managers and admins can view other users timesheet totals' },
             { status: 403 }
           )
         }
+
+        allowedTeamIds = allowed
       }
     }
 
-    const startDate = new Date(start_date)
-    const endDate = new Date(end_date)
+    const startDate = new Date(`${start_date}T00:00:00.000Z`)
+    const endDate = new Date(`${end_date}T00:00:00.000Z`)
+    const endDateInclusive = new Date(`${end_date}T23:59:59.999Z`)
 
     const maxDays = 90
     const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -79,13 +85,19 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { data: sessions, error: sessionsError } = await supabase
+    let sessionsQuery = supabase
       .from('time_sessions')
       .select('id, user_id, team_id, clock_in_at, clock_out_at, created_at, created_by')
       .eq('user_id', targetUserId)
       .gte('clock_in_at', startDate.toISOString())
-      .lte('clock_in_at', endDate.toISOString())
+      .lte('clock_in_at', endDateInclusive.toISOString())
       .order('clock_in_at', { ascending: false })
+
+    if (allowedTeamIds) {
+      sessionsQuery = sessionsQuery.in('team_id', allowedTeamIds)
+    }
+
+    const { data: sessions, error: sessionsError } = await sessionsQuery
 
     if (sessionsError) {
       return NextResponse.json(
@@ -122,12 +134,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { data: adjustments, error: adjustmentsError } = await supabase
+    let adjustmentsQuery = supabase
       .from('adjustments')
       .select('id, user_id, team_id, adjustment_type, minutes, effective_date, created_at, created_by, description, request_id, time_session_id')
       .eq('user_id', targetUserId)
       .gte('effective_date', start_date)
       .lte('effective_date', end_date)
+
+    if (allowedTeamIds) {
+      adjustmentsQuery = adjustmentsQuery.in('team_id', allowedTeamIds)
+    }
+
+    const { data: adjustments, error: adjustmentsError } = await adjustmentsQuery
 
     if (adjustmentsError) {
       return NextResponse.json(
@@ -142,7 +160,7 @@ export async function GET(request: NextRequest) {
       notes,
       adjustments || [],
       startDate,
-      endDate
+      endDateInclusive
     )
 
     const totalWorkMinutes = entries.reduce((sum, e) => sum + e.workMinutes, 0)
