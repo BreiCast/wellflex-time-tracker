@@ -27,7 +27,12 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   const [selectedBreakForAdjustment, setSelectedBreakForAdjustment] = useState<any>(null)
   const [isBreakAdjustmentModalOpen, setIsBreakAdjustmentModalOpen] = useState(false)
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
-  
+  const [crossTeamTotals, setCrossTeamTotals] = useState<{
+    totalWorkMinutes: number
+    totalAdjustments: number
+    daysWorked: number
+  } | null>(null)
+
   const [periodView, setPeriodView] = useState<'month' | 'week'>('month')
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date()
@@ -129,24 +134,66 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     }
   }, [selectedUserId, teamId, dateRange])
 
+  const loadCrossTeamTotals = useCallback(async () => {
+    if (selectedUserId === 'all' || !teamId || teamId === '') {
+      setCrossTeamTotals(null)
+      return
+    }
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(
+        `/api/timesheet/totals?user_id=${selectedUserId}&start_date=${dateRange.start}&end_date=${dateRange.end}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setCrossTeamTotals({
+          totalWorkMinutes: data.totalWorkMinutes ?? 0,
+          totalAdjustments: data.totalAdjustments ?? 0,
+          daysWorked: data.daysWorked ?? 0,
+        })
+      } else {
+        setCrossTeamTotals(null)
+      }
+    } catch {
+      setCrossTeamTotals(null)
+    }
+  }, [selectedUserId, teamId, dateRange])
+
   useEffect(() => {
     // Only require teamId if it's not empty (not "All Teams")
     if (teamId && teamId !== '') {
       if (selectedUserId) {
         loadTimesheet()
+        if (selectedUserId !== 'all') {
+          loadCrossTeamTotals()
+        } else {
+          setCrossTeamTotals(null)
+        }
       }
     } else if (teamId === '') {
       // When "All Teams" is selected, show empty state or aggregate
       setTimesheet([])
       setLoading(false)
+      setCrossTeamTotals(null)
     }
-  }, [selectedUserId, teamId, dateRange, loadTimesheet])
+  }, [selectedUserId, teamId, dateRange, loadTimesheet, loadCrossTeamTotals])
 
   // Listen for request approval events to refresh timesheet
   useEffect(() => {
     const handleRequestApproved = () => {
       if (teamId && teamId !== '' && selectedUserId) {
         loadTimesheet()
+        if (selectedUserId !== 'all') {
+          loadCrossTeamTotals()
+        }
       }
     }
 
@@ -154,7 +201,7 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
     return () => {
       window.removeEventListener('requestApproved', handleRequestApproved)
     }
-  }, [teamId, selectedUserId, loadTimesheet])
+  }, [teamId, selectedUserId, loadTimesheet, loadCrossTeamTotals])
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
@@ -185,6 +232,11 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
 
   const totalWorkMinutes = timesheet.reduce((sum, entry) => sum + entry.workMinutes, 0)
   const totalAdjustments = timesheet.reduce((sum, entry) => sum + entry.adjustedMinutes, 0)
+  const daysWorkedFromTimesheet = timesheet.filter(e => e.workMinutes > 0).length
+
+  const displayWorkMinutes = crossTeamTotals !== null ? crossTeamTotals.totalWorkMinutes : totalWorkMinutes
+  const displayAdjustments = crossTeamTotals !== null ? crossTeamTotals.totalAdjustments : totalAdjustments
+  const displayDaysWorked = crossTeamTotals !== null ? crossTeamTotals.daysWorked : daysWorkedFromTimesheet
 
   return (
     <div className="space-y-6">
@@ -326,19 +378,19 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
         <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100">
           <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-1">Total Work Time</p>
           <p className="text-2xl font-black text-indigo-900 font-mono">
-            {Math.floor(totalWorkMinutes / 60)}h {totalWorkMinutes % 60}m
+            {Math.floor(displayWorkMinutes / 60)}h {displayWorkMinutes % 60}m
           </p>
         </div>
         <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
           <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Days Worked</p>
           <p className="text-2xl font-black text-emerald-900 font-mono">
-            {timesheet.filter(e => e.workMinutes > 0).length}
+            {displayDaysWorked}
           </p>
         </div>
         <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
           <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Adjustments</p>
           <p className="text-2xl font-black text-amber-900 font-mono">
-            {totalAdjustments > 0 ? '+' : ''}{Math.floor(totalAdjustments / 60)}h {Math.abs(totalAdjustments % 60)}m
+            {displayAdjustments > 0 ? '+' : ''}{Math.floor(displayAdjustments / 60)}h {Math.abs(displayAdjustments % 60)}m
           </p>
         </div>
       </div>

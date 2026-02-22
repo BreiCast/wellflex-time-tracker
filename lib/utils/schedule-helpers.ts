@@ -1,8 +1,8 @@
 /**
  * Colombia uses America/Bogota (UTC-5, no DST).
- * Offset in minutes: local time = UTC + 5 hours for "date in Colombia" when deriving calendar date.
+ * Offset in minutes: local time = UTC - 5 hours.
  */
-export const COLOMBIA_UTC_OFFSET_MINUTES = 300
+export const COLOMBIA_UTC_OFFSET_MINUTES = -300
 
 export interface ColombiaDateParts {
   y: number
@@ -15,7 +15,9 @@ export interface ColombiaDateParts {
  * Get the calendar date and day-of-week in Colombian timezone for a given instant.
  */
 export function getColombiaDateParts(instant: Date): ColombiaDateParts {
-  const colombiaAdjusted = new Date(instant.getTime() + COLOMBIA_UTC_OFFSET_MINUTES * 60 * 1000)
+  const colombiaAdjusted = new Date(
+    instant.getTime() + COLOMBIA_UTC_OFFSET_MINUTES * 60 * 1000
+  )
   const y = colombiaAdjusted.getUTCFullYear()
   const m = colombiaAdjusted.getUTCMonth()
   const d = colombiaAdjusted.getUTCDate()
@@ -35,7 +37,14 @@ export function computeLateCheckInColombia(
   const [startHour, startMin] = startTimeStr.split(':').map(Number)
   // That calendar day at start_time in Colombia → UTC instant (09:00 Colombia = 14:00 UTC)
   const scheduledStart = new Date(
-    Date.UTC(parts.y, parts.m, parts.d, startHour + 5, startMin, 0)
+    Date.UTC(
+      parts.y,
+      parts.m,
+      parts.d,
+      startHour - COLOMBIA_UTC_OFFSET_MINUTES / 60,
+      startMin,
+      0
+    )
   )
   const isLate = clockInTime > scheduledStart
   return { isLate, scheduledStart }
