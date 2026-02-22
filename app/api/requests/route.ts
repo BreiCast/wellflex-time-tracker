@@ -11,6 +11,15 @@ import {
 } from '@/lib/utils/request-helpers'
 import { z } from 'zod'
 
+function normalizeIso(value?: string | null): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid timestamp')
+  }
+  return date.toISOString()
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request)
@@ -345,6 +354,127 @@ export async function PATCH(request: NextRequest) {
               userId: (requestData as any).user_id,
               teamId: (requestData as any).team_id,
             })
+          }
+        }
+      }
+      // Handle "Time Entry Edit"
+      else if (requestTypeUpper.includes('TIME') && requestTypeUpper.includes('ENTRY') && requestTypeUpper.includes('EDIT')) {
+        const editType = requestedData.edit_type
+
+        if (editType === 'TIME_SESSION') {
+          const sessionId = requestedData.time_session_id
+          const newClockIn = normalizeIso(requestedData.new_clock_in_at)
+          const newClockOut = normalizeIso(requestedData.new_clock_out_at)
+          if (sessionId && (newClockIn || newClockOut)) {
+            const { data: session } = await supabase
+              .from('time_sessions')
+              .select('id, user_id, team_id, clock_in_at, clock_out_at')
+              .eq('id', sessionId)
+              .eq('user_id', (requestData as any).user_id)
+              .eq('team_id', (requestData as any).team_id)
+              .single()
+
+            if (session) {
+              const currentClockIn = (session as any).clock_in_at
+              const currentClockOut = (session as any).clock_out_at
+              const finalClockIn = newClockIn ?? currentClockIn
+              const finalClockOut = newClockOut ?? currentClockOut
+              if (finalClockIn && finalClockOut && new Date(finalClockOut) < new Date(finalClockIn)) {
+                console.error('[REQUESTS] Invalid time session edit: clock-out before clock-in', {
+                  requestId: request_id,
+                  sessionId,
+                  finalClockIn,
+                  finalClockOut,
+                })
+              } else {
+                const updates: Record<string, string> = {}
+                if (newClockIn) updates.clock_in_at = newClockIn
+                if (newClockOut) updates.clock_out_at = newClockOut
+                const { error: updateError } = await supabase
+                  .from('time_sessions')
+                  .update(updates)
+                  .eq('id', sessionId)
+
+                if (updateError) {
+                  console.error('[REQUESTS] Error updating time session:', {
+                    error: updateError,
+                    requestId: request_id,
+                    sessionId,
+                  })
+                }
+              }
+            }
+          }
+        } else if (editType === 'BREAK_SEGMENT') {
+          const breakSegmentId = requestedData.break_segment_id
+          const newBreakStart = normalizeIso(requestedData.new_break_start_at)
+          const newBreakEnd = normalizeIso(requestedData.new_break_end_at)
+          if (breakSegmentId && (newBreakStart || newBreakEnd)) {
+            const { data: breakSeg } = await supabase
+              .from('break_segments')
+              .select('id, break_start_at, break_end_at, time_session_id, time_sessions!inner(user_id, team_id)')
+              .eq('id', breakSegmentId)
+              .eq('time_sessions.user_id', (requestData as any).user_id)
+              .eq('time_sessions.team_id', (requestData as any).team_id)
+              .single()
+
+            if (breakSeg) {
+              const currentBreakStart = (breakSeg as any).break_start_at
+              const currentBreakEnd = (breakSeg as any).break_end_at
+              const finalBreakStart = newBreakStart ?? currentBreakStart
+              const finalBreakEnd = newBreakEnd ?? currentBreakEnd
+              if (finalBreakStart && finalBreakEnd && new Date(finalBreakEnd) < new Date(finalBreakStart)) {
+                console.error('[REQUESTS] Invalid break edit: break_end before break_start', {
+                  requestId: request_id,
+                  breakSegmentId,
+                  finalBreakStart,
+                  finalBreakEnd,
+                })
+              } else {
+                const updates: Record<string, string> = {}
+                if (newBreakStart) updates.break_start_at = newBreakStart
+                if (newBreakEnd) updates.break_end_at = newBreakEnd
+                const { error: updateError } = await supabase
+                  .from('break_segments')
+                  .update(updates)
+                  .eq('id', breakSegmentId)
+
+                if (updateError) {
+                  console.error('[REQUESTS] Error updating break segment (edit):', {
+                    error: updateError,
+                    requestId: request_id,
+                    breakSegmentId,
+                  })
+                }
+              }
+            }
+          }
+        } else if (editType === 'NOTE') {
+          const noteId = requestedData.note_id
+          const newContent = typeof requestedData.new_content === 'string' ? requestedData.new_content.trim() : ''
+          if (noteId && newContent) {
+            const { data: note } = await supabase
+              .from('notes')
+              .select('id, time_session_id, time_sessions!inner(user_id, team_id)')
+              .eq('id', noteId)
+              .eq('time_sessions.user_id', (requestData as any).user_id)
+              .eq('time_sessions.team_id', (requestData as any).team_id)
+              .single()
+
+            if (note) {
+              const { error: updateError } = await supabase
+                .from('notes')
+                .update({ content: newContent })
+                .eq('id', noteId)
+
+              if (updateError) {
+                console.error('[REQUESTS] Error updating note (edit):', {
+                  error: updateError,
+                  requestId: request_id,
+                  noteId,
+                })
+              }
+            }
           }
         }
       }

@@ -64,11 +64,35 @@ export const createRequestSchema = z.object({
       requestedData.time_to
     )
   }
+
+  // For "Time Entry Edit"
+  if (requestType.includes('TIME') && requestType.includes('ENTRY') && requestType.includes('EDIT')) {
+    const editType = requestedData.edit_type
+    if (editType === 'TIME_SESSION') {
+      return (
+        requestedData.time_session_id &&
+        (requestedData.new_clock_in_at || requestedData.new_clock_out_at)
+      )
+    }
+    if (editType === 'BREAK_SEGMENT') {
+      return (
+        requestedData.break_segment_id &&
+        (requestedData.new_break_start_at || requestedData.new_break_end_at)
+      )
+    }
+    if (editType === 'NOTE') {
+      return (
+        requestedData.note_id &&
+        typeof requestedData.new_content === 'string'
+      )
+    }
+    return false
+  }
   
   // For other request types, requested_data is optional
   return true
 }, {
-  message: 'Invalid requested_data for this request type. For break/lunch requests, ensure date, time_from, time_to, and break_type are provided. For break/lunch adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided. For Leave Early, ensure date, time_from, and time_to are provided.',
+  message: 'Invalid requested_data for this request type. For break/lunch requests, ensure date, time_from, time_to, and break_type are provided. For break/lunch adjustments, ensure break_segment_id, current_duration_minutes, and adjusted_duration_minutes are provided. For Leave Early, ensure date, time_from, and time_to are provided. For Time Entry Edit, ensure edit_type and the required IDs/timestamps/content are provided.',
 }).refine((data) => {
   // Leave Early: To Time must be after From Time
   const requestType = data.request_type?.toUpperCase() ?? ''

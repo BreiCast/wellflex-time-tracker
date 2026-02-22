@@ -6,6 +6,7 @@ import { formatMinutes, getWeekStart, getWeekEnd, formatWeekRange } from '@/lib/
 import CalendarView from './CalendarView'
 import AdjustmentEditModal from './AdjustmentEditModal'
 import BreakAdjustmentModal from './BreakAdjustmentModal'
+import TimeEntryEditModal from './TimeEntryEditModal'
 
 interface TimesheetViewProps {
   userId?: string
@@ -27,6 +28,10 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
   const [selectedBreakForAdjustment, setSelectedBreakForAdjustment] = useState<any>(null)
   const [isBreakAdjustmentModalOpen, setIsBreakAdjustmentModalOpen] = useState(false)
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
+  const [timeEntryEditTarget, setTimeEntryEditTarget] = useState<{
+    editType: 'TIME_SESSION' | 'BREAK_SEGMENT' | 'NOTE'
+    target: any
+  } | null>(null)
   const [crossTeamTotals, setCrossTeamTotals] = useState<{
     totalWorkMinutes: number
     totalAdjustments: number
@@ -528,6 +533,26 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                               {entry.adjustments.length} ⚙️
                             </button>
                           )}
+                          {entry.sessions && entry.sessions.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const key = `${entry.date}-${entry.user_id || ''}-sessions`
+                                setExpandedEntries(prev => {
+                                  const newSet = new Set(prev)
+                                  if (newSet.has(key)) {
+                                    newSet.delete(key)
+                                  } else {
+                                    newSet.add(key)
+                                  }
+                                  return newSet
+                                })
+                              }}
+                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                              title={`${entry.sessions.length} session(s)`}
+                            >
+                              {entry.sessions.length} 🕒
+                            </button>
+                          )}
                           {entry.notes && entry.notes.length > 0 && (
                             <button
                               onClick={() => {
@@ -581,28 +606,85 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                     </div>
                                   </div>
                                   {(userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'SUPERADMIN' || selectedUserId === currentUser?.id) && (
-                                    <button
-                                      onClick={() => {
-                                        // This will be handled by BreakAdjustmentModal
-                                        setSelectedBreakForAdjustment({
-                                          id: breakSeg.id,
-                                          break_type: breakSeg.break_type,
-                                          break_start_at: breakSeg.break_start_at,
-                                          break_end_at: breakSeg.break_end_at,
-                                          duration_minutes: durationMinutes,
-                                          date: entry.date,
-                                          user_id: entry.user_id || selectedUserId || currentUser?.id || '',
-                                        })
-                                        setIsBreakAdjustmentModalOpen(true)
-                                      }}
-                                      className="px-4 py-2 text-xs font-black bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                                    >
-                                      Adjust Break
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => {
+                                          // This will be handled by BreakAdjustmentModal
+                                          setSelectedBreakForAdjustment({
+                                            id: breakSeg.id,
+                                            break_type: breakSeg.break_type,
+                                            break_start_at: breakSeg.break_start_at,
+                                            break_end_at: breakSeg.break_end_at,
+                                            duration_minutes: durationMinutes,
+                                            date: entry.date,
+                                            user_id: entry.user_id || selectedUserId || currentUser?.id || '',
+                                          })
+                                          setIsBreakAdjustmentModalOpen(true)
+                                        }}
+                                        className="px-4 py-2 text-xs font-black bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                      >
+                                        Adjust Break
+                                      </button>
+                                      {(userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
+                                        <button
+                                          onClick={() => {
+                                            setTimeEntryEditTarget({
+                                              editType: 'BREAK_SEGMENT',
+                                              target: {
+                                                id: breakSeg.id,
+                                                break_start_at: breakSeg.break_start_at,
+                                                break_end_at: breakSeg.break_end_at,
+                                              },
+                                            })
+                                          }}
+                                          className="px-3 py-2 text-xs font-black bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                                        >
+                                          Edit Times
+                                        </button>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               )
                             })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {/* Sessions row */}
+                    {entry.sessions && entry.sessions.length > 0 && expandedEntries.has(`${entry.date}-${entry.user_id || ''}-sessions`) && (
+                      <tr key={`${entry.date}-${entry.user_id || ''}-sessions`} className="bg-slate-50/80">
+                        <td colSpan={viewAllMembers ? 7 : 6} className="px-6 py-4">
+                          <div className="space-y-3">
+                            <p className="text-xs font-black text-slate-600 uppercase tracking-wider mb-2">Sessions</p>
+                            {entry.sessions.map((sess: any) => (
+                              <div key={sess.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-sm font-bold text-slate-700">
+                                      {new Date(sess.clock_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {sess.clock_out_at ? new Date(sess.clock_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                                    </span>
+                                  </div>
+                                </div>
+                                {(userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
+                                  <button
+                                    onClick={() => {
+                                      setTimeEntryEditTarget({
+                                        editType: 'TIME_SESSION',
+                                        target: {
+                                          id: sess.id,
+                                          clock_in_at: sess.clock_in_at,
+                                          clock_out_at: sess.clock_out_at,
+                                        },
+                                      })
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-black bg-slate-700 text-white hover:bg-slate-800 transition-colors"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         </td>
                       </tr>
@@ -692,12 +774,28 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                         minute: '2-digit' 
                                       })}
                                     </p>
-                                  </div>
                                 </div>
+                                {(userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
+                                  <button
+                                    onClick={() => {
+                                      setTimeEntryEditTarget({
+                                        editType: 'NOTE',
+                                        target: {
+                                          id: note.id,
+                                          content: note.content,
+                                        },
+                                      })
+                                    }}
+                                    className="ml-4 px-3 py-1.5 rounded-lg text-xs font-black bg-slate-700 text-white hover:bg-slate-800 transition-colors"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        </td>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
                       </tr>
                     )}
                   </>
@@ -744,6 +842,19 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
             loadTimesheet()
             setIsBreakAdjustmentModalOpen(false)
             setSelectedBreakForAdjustment(null)
+          }}
+        />
+      )}
+      {timeEntryEditTarget && (
+        <TimeEntryEditModal
+          isOpen={Boolean(timeEntryEditTarget)}
+          editType={timeEntryEditTarget.editType}
+          target={timeEntryEditTarget.target}
+          requiresApproval={userRole === 'MANAGER'}
+          onClose={() => setTimeEntryEditTarget(null)}
+          onSubmitted={() => {
+            loadTimesheet()
+            setTimeEntryEditTarget(null)
           }}
         />
       )}
