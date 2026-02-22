@@ -31,6 +31,7 @@ interface LiveStatusAgent {
   status: ApiStatus
   teamIds: string[]
   since: string | null
+  active_session_id?: string | null
   todayTotalMinutes: number
   break_type?: 'BREAK' | 'LUNCH'
   break_start_at?: string | null
@@ -158,6 +159,9 @@ export default function AdminLivePage() {
   const [sortBy, setSortBy] = useState<string>('status')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateInputValue(new Date()))
+  const [clockingOutByUser, setClockingOutByUser] = useState<Record<string, boolean>>({})
+  const [clockOutErrors, setClockOutErrors] = useState<Record<string, string>>({})
+  const [confirmTarget, setConfirmTarget] = useState<LiveStatusAgent | null>(null)
 
   const todayDateValue = useMemo(() => toLocalDateInputValue(new Date()), [])
   const isSelectedDateToday = selectedDate === todayDateValue
@@ -191,6 +195,43 @@ export default function AdminLivePage() {
     }
     setListLoading(false)
   }, [teamFilter, statusFilter, searchQuery, selectedDate])
+
+  const handleAdminClockOut = useCallback(async (agent: LiveStatusAgent) => {
+    if (!agent.active_session_id) return
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    setClockingOutByUser((prev) => ({ ...prev, [agent.userId]: true }))
+    setClockOutErrors((prev) => {
+      const next = { ...prev }
+      delete next[agent.userId]
+      return next
+    })
+
+    try {
+      const response = await fetch('/api/time-sessions/clock-out', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ time_session_id: agent.active_session_id }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to clock out user')
+      }
+      await fetchAgents()
+    } catch (err: any) {
+      setClockOutErrors((prev) => ({
+        ...prev,
+        [agent.userId]: err?.message || 'Failed to clock out user',
+      }))
+    } finally {
+      setClockingOutByUser((prev) => ({ ...prev, [agent.userId]: false }))
+    }
+  }, [fetchAgents])
 
   useEffect(() => {
     const loadData = async () => {
@@ -535,6 +576,10 @@ export default function AdminLivePage() {
                     minWorkingCount={cov?.min_working_count ?? null}
                     displayDate={selectedDate}
                     isSelectedDateToday={isSelectedDateToday}
+                    onClockOut={handleAdminClockOut}
+                    isClockingOut={Boolean(clockingOutByUser[agent.userId])}
+                    clockOutError={clockOutErrors[agent.userId]}
+                    onRequestClockOut={setConfirmTarget}
                   />
                 )
               })}
@@ -542,6 +587,18 @@ export default function AdminLivePage() {
           )}
         </div>
       </main>
+      {confirmTarget && (
+        <ConfirmClockOutModal
+          target={confirmTarget}
+          isSubmitting={Boolean(clockingOutByUser[confirmTarget.userId])}
+          onCancel={() => setConfirmTarget(null)}
+          onConfirm={async () => {
+            const target = confirmTarget
+            setConfirmTarget(null)
+            await handleAdminClockOut(target)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -558,6 +615,10 @@ function LiveStatusRow({
   minWorkingCount,
   displayDate,
   isSelectedDateToday,
+  onClockOut,
+  isClockingOut,
+  clockOutError,
+  onRequestClockOut,
 }: {
   agent: LiveStatusAgent
   displayStatus: DisplayStatus
@@ -565,6 +626,10 @@ function LiveStatusRow({
   minWorkingCount: number | null
   displayDate: string
   isSelectedDateToday: boolean
+  onClockOut?: (agent: LiveStatusAgent) => void
+  isClockingOut?: boolean
+  clockOutError?: string
+  onRequestClockOut?: (agent: LiveStatusAgent) => void
 }) {
   const isOnBreak = agent.status === 'On break'
   const sinceLabel = isOnBreak ? (agent.since ? `Break since ${formatSince(agent.since, true)}` : 'Break in progress') : (agent.since ? `Since ${formatSince(agent.since, false)}` : 'Last activity —')
@@ -584,6 +649,10 @@ function LiveStatusRow({
     minWorkingCount != null &&
     minWorkingCount > 0 &&
     workingCount <= minWorkingCount
+  const canClockOut =
+    Boolean(agent.active_session_id) &&
+    isSelectedDateToday &&
+    (agent.status === 'Working' || agent.status === 'On break')
 
   return (
     <li
@@ -625,6 +694,19 @@ function LiveStatusRow({
         {formatTodayTotal(agent.todayTotalMinutes)}
       </div>
 
+      {canClockOut && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onRequestClockOut?.(agent)}
+            disabled={isClockingOut}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-black uppercase tracking-wide shadow-sm hover:bg-rose-700 disabled:opacity-60"
+          >
+            {isClockingOut ? 'Stopping…' : 'Stop time'}
+          </button>
+        </div>
+      )}
+
       {/* 5. Per-row today timeline with Now indicator */}
       <div className="w-full mt-3 pl-0 sm:pl-0">
         <TodayTimelineStrip
@@ -634,8 +716,56 @@ function LiveStatusRow({
           displayDate={displayDate}
           isSelectedDateToday={isSelectedDateToday}
         />
+        {clockOutError && (
+          <p className="mt-2 text-xs font-bold text-rose-600">
+            {clockOutError}
+          </p>
+        )}
       </div>
     </li>
+  )
+}
+
+function ConfirmClockOutModal({
+  target,
+  onConfirm,
+  onCancel,
+  isSubmitting,
+}: {
+  target: LiveStatusAgent
+  onConfirm: () => void
+  onCancel: () => void
+  isSubmitting: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full overflow-hidden">
+        <div className="p-6 border-b border-slate-100">
+          <h3 className="text-xl font-black text-slate-900">Stop time?</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            You are about to clock out <span className="font-bold text-slate-700">{target.name}</span>.
+          </p>
+        </div>
+        <div className="p-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black uppercase tracking-wide hover:bg-rose-700 disabled:opacity-60"
+          >
+            {isSubmitting ? 'Stopping…' : 'Stop time'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
