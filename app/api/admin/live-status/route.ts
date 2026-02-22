@@ -26,6 +26,7 @@ export interface LiveStatusAgent {
   teamIds: string[]
   status: LiveStatusValue
   since: string | null
+  active_session_id?: string | null
   todayTotalMinutes: number
   break_type?: 'BREAK' | 'LUNCH'
   break_start_at?: string | null
@@ -320,6 +321,7 @@ export async function GET(request: NextRequest) {
         teamIds: userTeamIds,
         status,
         since,
+        active_session_id: activeSession?.id ?? null,
         todayTotalMinutes,
         today_segments,
       }
