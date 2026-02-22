@@ -13,6 +13,15 @@ export interface TimesheetEntry {
   workMinutes: number
   adjustments: Adjustment[]
   adjustedMinutes: number
+  sessions: Array<{
+    id: string
+    user_id: string
+    team_id: string | null
+    clock_in_at: string
+    clock_out_at: string | null
+    created_at: string
+    created_by: string
+  }>
   breaks: BreakSegment[] // Individual break segments for this date
   notes: Array<{ id: string; content: string; created_at: string; created_by: string; time_session_id: string }> // Notes for this date
   user_id?: string
@@ -42,6 +51,7 @@ export function calculateTimesheet(
       workMinutes: 0,
       adjustments: [],
       adjustedMinutes: 0,
+      sessions: [],
       breaks: [],
       notes: [],
     })
@@ -55,6 +65,15 @@ export function calculateTimesheet(
     
     if (entries.has(dateKey)) {
       const entry = entries.get(dateKey)!
+      entry.sessions.push({
+        id: session.id,
+        user_id: session.user_id,
+        team_id: session.team_id,
+        clock_in_at: session.clock_in_at,
+        clock_out_at: session.clock_out_at,
+        created_at: session.created_at,
+        created_by: session.created_by,
+      })
       if (!entry.clockIn || sessionDate < new Date(entry.clockIn)) {
         entry.clockIn = session.clock_in_at
       }
@@ -177,4 +196,3 @@ export function formatWeekRange(start: Date, end: Date): string {
   const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   return `${startStr} to ${endStr}`
 }
-

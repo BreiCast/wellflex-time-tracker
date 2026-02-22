@@ -132,43 +132,30 @@ CREATE TABLE public.audit_logs (
     created_by UUID NOT NULL REFERENCES public.users(id)
 );
 
--- Prevent UPDATE/DELETE on time_sessions (append-only, except clock_out_at and team_id)
+-- Prevent UPDATE/DELETE on time_sessions (append-only, except clock_in_at, clock_out_at, and team_id)
 CREATE OR REPLACE FUNCTION prevent_time_sessions_update_delete()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Allow UPDATE only if clock_out_at is being set and was previously NULL
-    IF TG_OP = 'UPDATE' AND OLD.clock_out_at IS NULL AND NEW.clock_out_at IS NOT NULL THEN
-        -- Only allow changing clock_out_at, nothing else
-        IF (OLD.id, OLD.user_id, OLD.team_id, OLD.clock_in_at, OLD.created_at, OLD.created_by) 
-           IS DISTINCT FROM 
-           (NEW.id, NEW.user_id, NEW.team_id, NEW.clock_in_at, NEW.created_at, NEW.created_by) THEN
-            RAISE EXCEPTION 'time_sessions table is append-only. Only clock_out_at can be updated.';
-        END IF;
-        RETURN NEW;
-    END IF;
-    
-    -- Allow updating team_id if session is still active (for team switching)
-    IF TG_OP = 'UPDATE' AND OLD.clock_out_at IS NULL AND NEW.clock_out_at IS NULL THEN
-        -- Allow changing team_id, but verify user is member of new team
+    IF TG_OP = 'UPDATE' THEN
+        -- Allow changing team_id if user is a member of the new team
         IF OLD.team_id IS DISTINCT FROM NEW.team_id THEN
-            -- Verify user is member of new team
             IF NOT EXISTS (
                 SELECT 1 FROM public.team_members
                 WHERE team_id = NEW.team_id AND user_id = NEW.user_id
             ) THEN
                 RAISE EXCEPTION 'You are not a member of the selected team.';
             END IF;
-            RETURN NEW;
         END IF;
-        -- For other updates on active sessions, only allow clock_out_at
-        IF (OLD.id, OLD.user_id, OLD.clock_in_at, OLD.created_at, OLD.created_by) 
-           IS DISTINCT FROM 
-           (NEW.id, NEW.user_id, NEW.clock_in_at, NEW.created_at, NEW.created_by) THEN
-            RAISE EXCEPTION 'time_sessions table is append-only. Only team_id and clock_out_at can be updated.';
+
+        -- Only allow updating clock_in_at, clock_out_at, and team_id
+        IF (OLD.id, OLD.user_id, OLD.created_at, OLD.created_by)
+           IS DISTINCT FROM
+           (NEW.id, NEW.user_id, NEW.created_at, NEW.created_by) THEN
+            RAISE EXCEPTION 'time_sessions table is append-only. Only clock_in_at, clock_out_at, and team_id can be updated.';
         END IF;
         RETURN NEW;
     END IF;
-    
+
     RAISE EXCEPTION 'time_sessions table is append-only. Use requests and adjustments for corrections.';
 END;
 $$ LANGUAGE plpgsql;
@@ -183,17 +170,16 @@ CREATE TRIGGER prevent_time_sessions_delete
     FOR EACH ROW
     EXECUTE FUNCTION prevent_time_sessions_update_delete();
 
--- Prevent UPDATE/DELETE on break_segments (append-only, except break_end_at)
+-- Prevent UPDATE/DELETE on break_segments (append-only, except break_start_at and break_end_at)
 CREATE OR REPLACE FUNCTION prevent_break_segments_update_delete()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Allow UPDATE only if break_end_at is being set and was previously NULL
-    IF TG_OP = 'UPDATE' AND OLD.break_end_at IS NULL AND NEW.break_end_at IS NOT NULL THEN
-        -- Only allow changing break_end_at, nothing else
-        IF (OLD.id, OLD.time_session_id, OLD.break_type, OLD.break_start_at, OLD.created_at, OLD.created_by) 
-           IS DISTINCT FROM 
-           (NEW.id, NEW.time_session_id, NEW.break_type, NEW.break_start_at, NEW.created_at, NEW.created_by) THEN
-            RAISE EXCEPTION 'break_segments table is append-only. Only break_end_at can be updated.';
+    IF TG_OP = 'UPDATE' THEN
+        -- Only allow changing break_start_at and break_end_at, nothing else
+        IF (OLD.id, OLD.time_session_id, OLD.break_type, OLD.created_at, OLD.created_by)
+           IS DISTINCT FROM
+           (NEW.id, NEW.time_session_id, NEW.break_type, NEW.created_at, NEW.created_by) THEN
+            RAISE EXCEPTION 'break_segments table is append-only. Only break_start_at and break_end_at can be updated.';
         END IF;
         RETURN NEW;
     END IF;
@@ -612,4 +598,3 @@ CREATE INDEX idx_adjustments_user_id ON public.adjustments(user_id);
 CREATE INDEX idx_adjustments_effective_date ON public.adjustments(effective_date);
 CREATE INDEX idx_team_members_team_id ON public.team_members(team_id);
 CREATE INDEX idx_team_members_user_id ON public.team_members(user_id);
-
