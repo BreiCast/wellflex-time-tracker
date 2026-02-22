@@ -302,11 +302,13 @@ export async function PATCH(request: NextRequest) {
         const adjustedDuration = requestedData.adjusted_duration_minutes
 
         if (breakSegmentId && typeof currentDuration === 'number' && typeof adjustedDuration === 'number') {
-          // Get the break segment
+          // Get the break segment scoped to the request's user/team
           const { data: breakSegment } = await supabase
             .from('break_segments')
-            .select('break_start_at, break_end_at')
+            .select('id, break_start_at, break_end_at, time_session_id, time_sessions!inner(user_id, team_id)')
             .eq('id', breakSegmentId)
+            .eq('time_sessions.user_id', (requestData as any).user_id)
+            .eq('time_sessions.team_id', (requestData as any).team_id)
             .single()
 
           if (breakSegment) {
@@ -336,6 +338,13 @@ export async function PATCH(request: NextRequest) {
                 newBreakEnd: newBreakEnd.toISOString(),
               })
             }
+          } else {
+            console.error('[REQUESTS] Break segment not found or not authorized for request:', {
+              requestId: request_id,
+              breakSegmentId,
+              userId: (requestData as any).user_id,
+              teamId: (requestData as any).team_id,
+            })
           }
         }
       }
