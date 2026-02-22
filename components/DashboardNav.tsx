@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -16,6 +17,8 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
   const router = useRouter()
   const pathname = usePathname()
   const currentTab = pathname === '/tracking' ? 'tracking' : activeTab
+  const [menuOpen, setMenuOpen] = useState(false)
+  const isAdmin = userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN'
 
   const tabs = [
     { 
@@ -106,30 +109,73 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
             </div>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <div className="hidden md:flex flex-col items-end mr-2">
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Logged in as</span>
-              <span className="text-sm font-semibold text-gray-700">{userEmail}</span>
-            </div>
-            
-            {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'SUPERADMIN') && (
-              <button
-                onClick={() => router.push('/admin')}
-                className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
-              >
-                Admin View
-              </button>
-            )}
-            
+          <div className="relative flex items-center">
             <button
-              onClick={onLogout}
-              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200"
-              title="Logout"
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white/90 px-3 py-2 shadow-sm hover:bg-slate-50 transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-black uppercase">
+                {userEmail ? userEmail.slice(0, 2) : 'ME'}
+              </span>
+              <div className="hidden md:flex flex-col items-start">
+                <span className="text-sm font-semibold text-slate-700 leading-tight">{userEmail || 'Account'}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{userRole || 'Member'}</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-500 transition-transform ${menuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
+
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setMenuOpen(false)}
+                  className="fixed inset-0 z-40 cursor-default"
+                />
+                <div className="absolute right-0 top-12 w-60 rounded-2xl border border-slate-200 bg-white shadow-lg p-2 z-50">
+                  <div className="px-3 py-2">
+                    <p className="text-xs uppercase tracking-wider text-slate-400 font-bold">Signed in</p>
+                    <p className="text-sm font-semibold text-slate-700">{userEmail || 'Account'}</p>
+                  </div>
+                  <div className="h-px bg-slate-100 my-2" />
+                  {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      router.push('/admin')
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 9-7 10-3.5-1-7-5-7-10V7l7-4z" />
+                      </svg>
+                    </span>
+                    Admin Tools
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onLogout()
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                >
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </span>
+                  Sign out
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
