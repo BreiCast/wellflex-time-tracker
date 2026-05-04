@@ -73,7 +73,7 @@ export async function sendRequestNotificationEmail(
   requestedDateTo?: string,
   requestedTimeFrom?: string,
   requestedTimeTo?: string,
-  recipientEmails: string[],
+  recipientEmails: string[] = [],
   meta?: RequestEmailMeta
 ) {
   console.log('[EMAIL] Starting notification email send', {
