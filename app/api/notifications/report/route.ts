@@ -88,7 +88,13 @@ export async function POST(request: NextRequest) {
       .select('user_id, role')
       .in('role', ['MANAGER', 'ADMIN']) as any
 
-    const recipientIds = Array.from(new Set((adminTeamMembers || []).map((tm: any) => tm.user_id)))
+    const recipientIds: string[] = [
+      ...new Set(
+        ((adminTeamMembers ?? []) as { user_id: string }[])
+          .map((tm) => tm.user_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      ),
+    ]
     if (recipientIds.length === 0) {
       return NextResponse.json({
         success: true,
