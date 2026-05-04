@@ -1,8 +1,30 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isDesktopRequest, sanitizeUserAgentForLogs } from '@/lib/security/access-guards'
 
 export async function middleware(request: NextRequest) {
   try {
+    const { pathname } = request.nextUrl
+    if (pathname.startsWith('/access-denied')) {
+      return NextResponse.next()
+    }
+
+    const userAgent = request.headers.get('user-agent')
+    if (!isDesktopRequest(userAgent)) {
+      const uaSnippet = sanitizeUserAgentForLogs(userAgent)
+      console.warn(`[ACCESS] Blocked non-desktop request path=${pathname} ua="${uaSnippet}"`)
+
+      const acceptsHtml = request.headers.get('accept')?.includes('text/html')
+      if (!acceptsHtml) {
+        return NextResponse.json({ error: 'Desktop access only' }, { status: 403 })
+      }
+
+      const blockedUrl = request.nextUrl.clone()
+      blockedUrl.pathname = '/access-denied'
+      blockedUrl.searchParams.set('reason', 'device')
+      return NextResponse.redirect(blockedUrl)
+    }
+
     // Check if environment variables are set
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
