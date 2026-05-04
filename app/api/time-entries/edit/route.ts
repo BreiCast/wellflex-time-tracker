@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
+import { sendRequestConfirmationEmail, sendRequestNotificationEmail } from '@/lib/utils/email'
+import { getRequestNotificationRecipientEmails } from '@/lib/utils/request-notification-recipients'
 import { z } from 'zod'
 
 const editTimeEntrySchema = z.object({
@@ -188,6 +190,58 @@ export async function POST(request: NextRequest) {
       if (requestError) {
         return NextResponse.json({ error: requestError.message }, { status: 400 })
       }
+
+      Promise.all([
+        supabase.from('users').select('email, full_name').eq('id', user.id).single(),
+        supabase.from('users').select('email, full_name').eq('id', targetUserId).single(),
+        supabase.from('teams').select('name').eq('id', teamId).single(),
+      ])
+        .then(async ([managerRes, employeeRes, teamRes]) => {
+          if (managerRes.error || !managerRes.data) {
+            console.error('[EMAIL] manager user fetch for time edit request:', managerRes.error)
+            return
+          }
+          if (employeeRes.error || !employeeRes.data) {
+            console.error('[EMAIL] employee user fetch for time edit request:', employeeRes.error)
+            return
+          }
+          if (teamRes.error || !teamRes.data) {
+            console.error('[EMAIL] team fetch for time edit request:', teamRes.error)
+            return
+          }
+          const mgr = managerRes.data as { email: string; full_name: string | null }
+          const emp = employeeRes.data as { email: string; full_name: string | null }
+          const tm = teamRes.data as { name: string }
+          const recipientEmails = await getRequestNotificationRecipientEmails(supabase, teamId)
+          const managerName = mgr.full_name || mgr.email
+          const employeeName = emp.full_name || emp.email
+          await sendRequestNotificationEmail(
+            'Time Entry Edit',
+            managerName,
+            mgr.email,
+            tm.name,
+            description,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            recipientEmails,
+            { submittedForName: employeeName, submittedForEmail: emp.email }
+          )
+          await sendRequestConfirmationEmail(
+            'Time Entry Edit',
+            managerName,
+            mgr.email,
+            tm.name,
+            description,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            { submittedForName: employeeName, submittedForEmail: emp.email }
+          )
+        })
+        .catch((err) => console.error('[EMAIL] time entry edit request emails:', err))
 
       return NextResponse.json({ request: requestRow })
     }
