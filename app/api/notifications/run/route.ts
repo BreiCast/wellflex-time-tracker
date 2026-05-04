@@ -127,15 +127,50 @@ export async function POST(request: NextRequest) {
         .single()
 
       // Get user's active break
-      let activeBreak = null
+      let activeBreak: any = null
       if (activeSession) {
         const { data: breakData } = await supabase
           .from('break_segments')
-          .select('id, break_start_at')
+          .select('id, break_start_at, break_type')
           .eq('time_session_id', activeSession.id)
           .is('break_end_at', null)
           .single()
         activeBreak = breakData
+      }
+
+      const recipients: Array<{ id: string; email: string; name: string; role: 'USER' | 'MANAGER' | 'ADMIN' }> = [
+        { id: user.id, email: user.email, name: user.full_name || user.email, role: 'USER' },
+      ]
+
+      if (activeSession?.team_id) {
+        const { data: managers } = await supabase
+          .from('team_members')
+          .select('user_id, role')
+          .eq('team_id', activeSession.team_id)
+          .in('role', ['MANAGER', 'ADMIN']) as any
+
+        const managerIds = (managers || [])
+          .map((m: any) => m.user_id)
+          .filter((id: string) => id !== user.id)
+
+        if (managerIds.length > 0) {
+          const { data: managerUsers } = await supabase
+            .from('users')
+            .select('id, email, full_name')
+            .in('id', managerIds) as any
+
+          for (const managerUser of managerUsers || []) {
+            if (!managerUser.email) continue
+            const managerRole = (managers || []).find((m: any) => m.user_id === managerUser.id)?.role
+            const role = managerRole === 'ADMIN' ? 'ADMIN' : 'MANAGER'
+            recipients.push({
+              id: managerUser.id,
+              email: managerUser.email,
+              name: managerUser.full_name || managerUser.email,
+              role,
+            })
+          }
+        }
       }
 
       // Get user's schedule for today
@@ -272,29 +307,34 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. BREAK_RETURN_REMINDER
+      // 3. LUNCH/BREAK open reminders
       if ((prefs?.break_return_reminders_enabled !== false) && activeBreak) {
         const breakStart = new Date(activeBreak.break_start_at)
         const breakDuration = Math.floor((userNow.getTime() - breakStart.getTime()) / (1000 * 60))
-        
-        if (breakDuration >= ((orgSettings as any).break_return_threshold_minutes || 30)) {
-          const { data: recentNotification } = await supabase
-            .from('notification_events' as any)
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('notification_type', 'BREAK_RETURN_REMINDER')
-            .gte('created_at', cooldownCutoff.toISOString())
-            .limit(1)
-            .maybeSingle()
+        const isLunch = activeBreak.break_type === 'LUNCH'
+        const thresholdMinutes = isLunch ? 60 : 15
+        const notificationType = isLunch ? 'LUNCH_NOT_ENDED_REMINDER' : 'BREAK_NOT_ENDED_REMINDER'
 
-          if (!recentNotification) {
-            processed.push(`${user.email}: BREAK_RETURN_REMINDER`)
-            
+        if (breakDuration >= thresholdMinutes) {
+          for (const recipient of recipients) {
+            const { data: recentNotification } = await supabase
+              .from('notification_events' as any)
+              .select('id')
+              .eq('user_id', recipient.id)
+              .eq('notification_type', notificationType)
+              .gte('created_at', cooldownCutoff.toISOString())
+              .limit(1)
+              .maybeSingle()
+
+            if (recentNotification) continue
+
+            processed.push(`${recipient.email}: ${notificationType}`)
+
             if (!dryRun) {
               const sentResult = await sendReminderEmail({
-                userEmail: user.email,
-                userName: user.full_name || user.email,
-                notificationType: 'BREAK_RETURN_REMINDER',
+                userEmail: recipient.email,
+                userName: recipient.name,
+                notificationType,
                 sessionInfo: {
                   breakStartAt: activeBreak.break_start_at,
                   breakDurationMinutes: breakDuration
@@ -305,22 +345,26 @@ export async function POST(request: NextRequest) {
               await supabase
                 .from('notification_events' as any)
                 .insert({
-                  user_id: user.id,
-                  notification_type: 'BREAK_RETURN_REMINDER',
+                  user_id: recipient.id,
+                  notification_type: notificationType,
                   status: sentResult.success ? 'SENT' : 'FAILED',
                   payload: {
                     break_id: activeBreak.id,
-                    break_duration_minutes: breakDuration
+                    break_type: activeBreak.break_type,
+                    break_duration_minutes: breakDuration,
+                    source_user_id: user.id,
+                    recipient_role: recipient.role,
+                    session_id: activeSession?.id || null,
                   },
                   sent_at: sentResult.success ? new Date().toISOString() : null,
                   error_message: sentResult.error || null
                 })
 
               if (sentResult.success) {
-                sent.push(`${user.email}: BREAK_RETURN_REMINDER`)
+                sent.push(`${recipient.email}: ${notificationType}`)
               }
             } else {
-              sent.push(`${user.email}: BREAK_RETURN_REMINDER (dry run)`)
+              sent.push(`${recipient.email}: ${notificationType} (dry run)`)
             }
           }
         }
@@ -332,22 +376,24 @@ export async function POST(request: NextRequest) {
         const sessionDuration = Math.floor((userNow.getTime() - clockInTime.getTime()) / (1000 * 60))
         
         if (sessionDuration >= ((orgSettings as any).missed_punch_threshold_hours || 12) * 60) {
-          const { data: recentNotification } = await supabase
-            .from('notification_events' as any)
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('notification_type', 'MISSED_PUNCH_REMINDER')
-            .gte('created_at', cooldownCutoff.toISOString())
-            .limit(1)
-            .maybeSingle()
+          for (const recipient of recipients) {
+            const { data: recentNotification } = await supabase
+              .from('notification_events' as any)
+              .select('id')
+              .eq('user_id', recipient.id)
+              .eq('notification_type', 'MISSED_PUNCH_REMINDER')
+              .gte('created_at', cooldownCutoff.toISOString())
+              .limit(1)
+              .maybeSingle()
 
-          if (!recentNotification) {
-            processed.push(`${user.email}: MISSED_PUNCH_REMINDER`)
-            
+            if (recentNotification) continue
+
+            processed.push(`${recipient.email}: MISSED_PUNCH_REMINDER`)
+
             if (!dryRun) {
               const sentResult = await sendReminderEmail({
-                userEmail: user.email,
-                userName: user.full_name || user.email,
+                userEmail: recipient.email,
+                userName: recipient.name,
                 notificationType: 'MISSED_PUNCH_REMINDER',
                 sessionInfo: {
                   clockInAt: activeSession.clock_in_at,
@@ -359,22 +405,25 @@ export async function POST(request: NextRequest) {
               await supabase
                 .from('notification_events' as any)
                 .insert({
-                  user_id: user.id,
+                  user_id: recipient.id,
                   notification_type: 'MISSED_PUNCH_REMINDER',
                   status: sentResult.success ? 'SENT' : 'FAILED',
                   payload: {
                     session_id: activeSession.id,
-                    session_duration_minutes: sessionDuration
+                    session_duration_minutes: sessionDuration,
+                    source_user_id: user.id,
+                    recipient_role: recipient.role,
+                    team_id: activeSession.team_id,
                   },
                   sent_at: sentResult.success ? new Date().toISOString() : null,
                   error_message: sentResult.error || null
                 })
 
               if (sentResult.success) {
-                sent.push(`${user.email}: MISSED_PUNCH_REMINDER`)
+                sent.push(`${recipient.email}: MISSED_PUNCH_REMINDER`)
               }
             } else {
-              sent.push(`${user.email}: MISSED_PUNCH_REMINDER (dry run)`)
+              sent.push(`${recipient.email}: MISSED_PUNCH_REMINDER (dry run)`)
             }
           }
         }

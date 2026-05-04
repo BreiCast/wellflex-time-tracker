@@ -19,7 +19,10 @@ The password reset functionality allows users to reset their password if they fo
 ### Step 2: Receive Email
 
 1. User receives email with password reset link
-2. Link format: `https://tracker.wellflex.co/reset-password?token_hash=...&type=recovery`
+2. Link format can vary by Supabase flow/configuration:
+   - `https://tracker.wellflex.co/reset-password?token_hash=...&type=recovery`
+   - `https://tracker.wellflex.co/reset-password?code=...`
+   - `https://tracker.wellflex.co/reset-password#access_token=...&refresh_token=...&type=recovery`
 3. Link expires after 24 hours (Supabase default)
 
 ### Step 3: Reset Password
@@ -57,7 +60,13 @@ supabase.auth.verifyOtp({
 })
 
 // Or exchange code for session (PKCE flow)
-supabase.auth.exchangeCodeForSession(token)
+supabase.auth.exchangeCodeForSession(code)
+
+// Or restore session from hash fragment tokens
+supabase.auth.setSession({
+  access_token,
+  refresh_token,
+})
 
 // Update password
 supabase.auth.updateUser({
@@ -88,6 +97,7 @@ The password reset email template in Supabase should use:
 
 The reset password page handles:
 - Invalid or expired tokens
+- Multiple recovery payload formats (token_hash, code, hash fragment tokens)
 - Password mismatch
 - Password too short (< 6 characters)
 - Network errors

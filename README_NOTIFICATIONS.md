@@ -66,10 +66,12 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ## Vercel Cron Configuration
 
-The `vercel.json` file includes cron job definitions:
+Cron jobs should include:
 
-- **Notifications**: Runs every 10 minutes (`*/10 * * * *`)
-- **Missed Punch Detection**: Runs every 30 minutes (`*/30 * * * *`)
+- **Notifications Runner**: `POST /api/notifications/run` every 10 minutes (`*/10 * * * *`)
+- **Missed Punch Detection**: `POST /api/missed-punch/run` every 30 minutes (`*/30 * * * *`)
+- **Admin Daily Report**: `POST /api/notifications/report?window=daily` once per day
+- **Admin Weekly Report**: `POST /api/notifications/report?window=weekly` once per week
 
 Vercel will automatically call these endpoints with the `Authorization: Bearer <CRON_SECRET>` header.
 
@@ -86,6 +88,10 @@ curl -X POST "https://your-app.vercel.app/api/notifications/run?dry_run=true" \
 
 # Test missed punch detection
 curl -X POST "https://your-app.vercel.app/api/missed-punch/run" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+# Test admin report (dry run)
+curl -X POST "https://your-app.vercel.app/api/notifications/report?window=daily&dry_run=true" \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
@@ -108,8 +114,11 @@ curl -X POST "http://localhost:3000/api/notifications/run?dry_run=true" \
 
 - **CLOCK_IN_REMINDER**: Sent when user hasn't clocked in within the reminder window after scheduled start
 - **CLOCK_OUT_REMINDER**: Sent before scheduled end time and after if still running
-- **BREAK_RETURN_REMINDER**: Sent when break exceeds the threshold duration
+- **LUNCH_NOT_ENDED_REMINDER**: Sent when lunch is open > 60 minutes
+- **BREAK_NOT_ENDED_REMINDER**: Sent when non-lunch break is open > 15 minutes
 - **MISSED_PUNCH_REMINDER**: Sent when session exceeds the missed punch threshold
+- **ADMIN_DAILY_ATTENDANCE_REPORT**: Daily summary for managers/admins
+- **ADMIN_WEEKLY_ATTENDANCE_REPORT**: Weekly summary for managers/admins
 
 ### 2. Missed Punch Detection
 
@@ -124,14 +133,21 @@ Users can configure:
 - Quiet hours (no reminders during these times)
 - Timezone (for time-aware reminders)
 
+Reminder recipients:
+- User receives reminder
+- Team managers/admins also receive reminder copy for lunch/break/missed clock-out events
+
 ### 4. Admin Settings
 
 Admins can configure:
 - Missed punch threshold (hours)
 - Reminder timing windows (minutes)
-- Break return threshold (minutes)
 - Reminder cooldown (minutes)
 - Default quiet hours
+
+Fixed thresholds used by runner:
+- Lunch open threshold: **60 minutes**
+- Break open threshold: **15 minutes** (non-lunch)
 
 ## User Interface
 
