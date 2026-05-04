@@ -3,7 +3,15 @@ import nodemailer from 'nodemailer'
 interface ReminderEmailParams {
   userEmail: string
   userName: string
-  notificationType: 'CLOCK_IN_REMINDER' | 'CLOCK_OUT_REMINDER' | 'BREAK_RETURN_REMINDER' | 'MISSED_PUNCH_REMINDER'
+  notificationType:
+    | 'CLOCK_IN_REMINDER'
+    | 'CLOCK_OUT_REMINDER'
+    | 'BREAK_RETURN_REMINDER'
+    | 'MISSED_PUNCH_REMINDER'
+    | 'LUNCH_NOT_ENDED_REMINDER'
+    | 'BREAK_NOT_ENDED_REMINDER'
+    | 'ADMIN_DAILY_ATTENDANCE_REPORT'
+    | 'ADMIN_WEEKLY_ATTENDANCE_REPORT'
   sessionInfo: {
     clockInAt?: string
     durationMinutes?: number
@@ -11,6 +19,10 @@ interface ReminderEmailParams {
     breakDurationMinutes?: number
   } | null
   dashboardUrl: string
+  reportData?: {
+    windowLabel: string
+    summaryLines: string[]
+  } | null
 }
 
 // Create transporter using environment variables
@@ -70,7 +82,7 @@ export async function sendReminderEmail(params: ReminderEmailParams): Promise<{ 
     return { success: false, error: 'SMTP not configured' }
   }
 
-  const { userEmail, userName, notificationType, sessionInfo, dashboardUrl } = params
+  const { userEmail, userName, notificationType, sessionInfo, dashboardUrl, reportData } = params
   const smtpFrom = process.env.SMTP_FROM || 'noreply@wellflex.co'
   const smtpFromName = process.env.SMTP_FROM_NAME || 'wetrack'
 
@@ -211,6 +223,92 @@ export async function sendReminderEmail(params: ReminderEmailParams): Promise<{ 
         </html>
       `
       textContent = `Hi ${userName},\n\nYou have an active time session that has been running for ${sessionDuration}. Please clock out or submit a time correction request.\n\nClock In: ${sessionClockIn}\nDuration: ${sessionDuration}\n\nView dashboard: ${dashboardUrl}\nRequest correction: ${dashboardUrl.replace('/tracking', '/dashboard?tab=requests')}`
+      break
+    case 'LUNCH_NOT_ENDED_REMINDER':
+      const lunchDuration = sessionInfo?.breakDurationMinutes ? formatDuration(sessionInfo.breakDurationMinutes) : 'N/A'
+      subject = '⚠️ Lunch Not Ended - wetrack'
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">⚠️ Lunch Not Ended</h1>
+            </div>
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+              <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+              <p>Your lunch has been open for ${lunchDuration}. Please end your lunch when you return.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${dashboardUrl}" style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Open Tracking</a>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+      textContent = `Hi ${userName},\n\nYour lunch has been open for ${lunchDuration}. Please end your lunch when you return.\n\nOpen tracking: ${dashboardUrl}`
+      break
+    case 'BREAK_NOT_ENDED_REMINDER':
+      const openBreakDuration = sessionInfo?.breakDurationMinutes ? formatDuration(sessionInfo.breakDurationMinutes) : 'N/A'
+      subject = '⚠️ Break Not Ended - wetrack'
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">⚠️ Break Not Ended</h1>
+            </div>
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+              <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+              <p>Your break has been open for ${openBreakDuration}. Please end your break if you are back at work.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${dashboardUrl}" style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Open Tracking</a>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+      textContent = `Hi ${userName},\n\nYour break has been open for ${openBreakDuration}. Please end your break if you are back at work.\n\nOpen tracking: ${dashboardUrl}`
+      break
+    case 'ADMIN_DAILY_ATTENDANCE_REPORT':
+    case 'ADMIN_WEEKLY_ATTENDANCE_REPORT':
+      const reportTitle = notificationType === 'ADMIN_DAILY_ATTENDANCE_REPORT' ? 'Daily Attendance Alert Report' : 'Weekly Attendance Alert Report'
+      const windowLabel = reportData?.windowLabel || 'Current window'
+      const summaryLines = reportData?.summaryLines || []
+      const listHtml = summaryLines.length > 0
+        ? `<ul style="margin: 12px 0 0 0; padding-left: 18px;">${summaryLines.map((line) => `<li style="margin-bottom: 6px;">${line}</li>`).join('')}</ul>`
+        : '<p style="margin-top: 12px;">No issues detected for this period.</p>'
+
+      subject = `📊 ${reportTitle} - wetrack`
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">📊 ${reportTitle}</h1>
+            </div>
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+              <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+              <p>Report window: <strong>${windowLabel}</strong></p>
+              ${listHtml}
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${dashboardUrl}" style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Open Admin Dashboard</a>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+      textContent = `Hi ${userName},\n\n${reportTitle}\nWindow: ${windowLabel}\n\n${summaryLines.length > 0 ? summaryLines.map((line) => `- ${line}`).join('\n') : 'No issues detected for this period.'}\n\nOpen admin dashboard: ${dashboardUrl}`
       break
   }
 
