@@ -1,9 +1,17 @@
 import nodemailer from 'nodemailer'
 
-const ADMIN_EMAILS = [
-  'info@wellflex.co',
-  'breidercastro@icloud.com'
-]
+export type RequestEmailMeta = {
+  submittedForName?: string
+  submittedForEmail?: string
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
 // Create transporter using environment variables (same SMTP as Supabase)
 const getEmailTransporter = () => {
@@ -64,7 +72,9 @@ export async function sendRequestNotificationEmail(
   requestedDateFrom?: string,
   requestedDateTo?: string,
   requestedTimeFrom?: string,
-  requestedTimeTo?: string
+  requestedTimeTo?: string,
+  recipientEmails: string[],
+  meta?: RequestEmailMeta
 ) {
   console.log('[EMAIL] Starting notification email send', {
     requestType,
@@ -107,6 +117,19 @@ export async function sendRequestNotificationEmail(
     })
   }
 
+  const safeType = escapeHtml(requestType)
+  const safeName = escapeHtml(userName)
+  const safeEmail = escapeHtml(userEmail)
+  const safeTeam = escapeHtml(teamName)
+  const safeDesc = escapeHtml(description)
+  const forName = meta?.submittedForName ? escapeHtml(meta.submittedForName) : ''
+  const forEmail = meta?.submittedForEmail ? escapeHtml(meta.submittedForEmail) : ''
+
+  if (!recipientEmails.length) {
+    console.warn('[EMAIL] No request notification recipients; skipping admin notification')
+    return
+  }
+
   const subject = `New ${requestType} Request from ${userName}`
   
   const htmlContent = `
@@ -129,15 +152,21 @@ export async function sendRequestNotificationEmail(
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057; width: 140px;">Request Type:</td>
-                <td style="padding: 8px 0; color: #212529;">${requestType}</td>
+                <td style="padding: 8px 0; color: #212529;">${safeType}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Submitted By:</td>
-                <td style="padding: 8px 0; color: #212529;">${userName} (${userEmail})</td>
+                <td style="padding: 8px 0; color: #212529;">${safeName} (${safeEmail})</td>
               </tr>
+              ${forName ? `
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #495057;">For:</td>
+                <td style="padding: 8px 0; color: #212529;">${forName}${forEmail ? ` (${forEmail})` : ''}</td>
+              </tr>
+              ` : ''}
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Team:</td>
-                <td style="padding: 8px 0; color: #212529;">${teamName}</td>
+                <td style="padding: 8px 0; color: #212529;">${safeTeam}</td>
               </tr>
               ${dateInfo !== 'N/A' ? `
               <tr>
@@ -156,7 +185,7 @@ export async function sendRequestNotificationEmail(
           
           <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
             <p style="margin: 0; font-weight: bold; color: #495057; margin-bottom: 8px;">Description:</p>
-            <p style="margin: 0; color: #212529; white-space: pre-wrap;">${description}</p>
+            <p style="margin: 0; color: #212529; white-space: pre-wrap;">${safeDesc}</p>
           </div>
           
           <p style="font-size: 14px; color: #6c757d; margin-top: 30px;">
@@ -171,6 +200,11 @@ export async function sendRequestNotificationEmail(
     </html>
   `
 
+  const forPlain =
+    meta?.submittedForName != null && meta.submittedForName !== ''
+      ? `For: ${meta.submittedForName}${meta.submittedForEmail ? ` (${meta.submittedForEmail})` : ''}\n`
+      : ''
+
   const textContent = `
 New Request Submitted
 
@@ -178,7 +212,7 @@ A new request has been submitted and requires your review.
 
 Request Type: ${requestType}
 Submitted By: ${userName} (${userEmail})
-Team: ${teamName}
+${forPlain}Team: ${teamName}
 ${dateInfo !== 'N/A' ? `Date Range: ${dateInfo}` : ''}
 ${timeInfo ? `Time Range: ${timeInfo}` : ''}
 
@@ -192,12 +226,11 @@ Please review this request in the admin panel.
     const fromEmail = process.env.SMTP_FROM_EMAIL || 'wetrack <noreply@wellflex.co>'
     console.log('[EMAIL] Attempting to send notification emails', {
       from: fromEmail,
-      to: ADMIN_EMAILS,
-      count: ADMIN_EMAILS.length
+      to: recipientEmails,
+      count: recipientEmails.length
     })
 
-    // Send to all admin emails
-    const emailPromises = ADMIN_EMAILS.map(async (email) => {
+    const emailPromises = recipientEmails.map(async (email) => {
       try {
         const result = await transporter.sendMail({
           from: fromEmail,
@@ -221,7 +254,7 @@ Please review this request in the admin panel.
     const results = await Promise.all(emailPromises)
     console.log('[EMAIL] ✅ All notification emails sent successfully', {
       sent: results.length,
-      emails: ADMIN_EMAILS,
+      emails: recipientEmails,
       messageIds: results.map((r: any) => r.messageId)
     })
   } catch (error: any) {
@@ -245,7 +278,8 @@ export async function sendRequestConfirmationEmail(
   requestedDateFrom?: string,
   requestedDateTo?: string,
   requestedTimeFrom?: string,
-  requestedTimeTo?: string
+  requestedTimeTo?: string,
+  meta?: RequestEmailMeta
 ) {
   console.log('[EMAIL] Starting confirmation email send', {
     requestType,
@@ -288,6 +322,13 @@ export async function sendRequestConfirmationEmail(
     })
   }
 
+  const safeType = escapeHtml(requestType)
+  const safeName = escapeHtml(userName)
+  const safeTeam = escapeHtml(teamName)
+  const safeDesc = escapeHtml(description)
+  const forName = meta?.submittedForName ? escapeHtml(meta.submittedForName) : ''
+  const forEmail = meta?.submittedForEmail ? escapeHtml(meta.submittedForEmail) : ''
+
   const subject = `Your ${requestType} Request Has Been Submitted`
   
   const htmlContent = `
@@ -304,7 +345,7 @@ export async function sendRequestConfirmationEmail(
         </div>
         
         <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
-          <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+          <p style="font-size: 16px; margin-top: 0;">Hi ${safeName},</p>
           
           <p style="font-size: 16px;">Thank you for submitting your request. We've received it and it's now pending review by an administrator.</p>
           
@@ -312,11 +353,17 @@ export async function sendRequestConfirmationEmail(
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057; width: 140px;">Request Type:</td>
-                <td style="padding: 8px 0; color: #212529;">${requestType}</td>
+                <td style="padding: 8px 0; color: #212529;">${safeType}</td>
               </tr>
+              ${forName ? `
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Applies to:</td>
+                <td style="padding: 8px 0; color: #212529;">${forName}${forEmail ? ` (${forEmail})` : ''}</td>
+              </tr>
+              ` : ''}
               <tr>
                 <td style="padding: 8px 0; font-weight: bold; color: #495057;">Team:</td>
-                <td style="padding: 8px 0; color: #212529;">${teamName}</td>
+                <td style="padding: 8px 0; color: #212529;">${safeTeam}</td>
               </tr>
               ${dateInfo !== 'N/A' ? `
               <tr>
@@ -335,7 +382,7 @@ export async function sendRequestConfirmationEmail(
           
           <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
             <p style="margin: 0; font-weight: bold; color: #495057; margin-bottom: 8px;">Your Description:</p>
-            <p style="margin: 0; color: #212529; white-space: pre-wrap;">${description}</p>
+            <p style="margin: 0; color: #212529; white-space: pre-wrap;">${safeDesc}</p>
           </div>
           
           <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196F3;">
@@ -359,6 +406,11 @@ export async function sendRequestConfirmationEmail(
     </html>
   `
 
+  const appliesPlain =
+    meta?.submittedForName != null && meta.submittedForName !== ''
+      ? `Applies to: ${meta.submittedForName}${meta.submittedForEmail ? ` (${meta.submittedForEmail})` : ''}\n`
+      : ''
+
   const textContent = `
 Request Submitted Successfully
 
@@ -367,7 +419,7 @@ Hi ${userName},
 Thank you for submitting your request. We've received it and it's now pending review by an administrator.
 
 Request Type: ${requestType}
-Team: ${teamName}
+${appliesPlain}Team: ${teamName}
 ${dateInfo !== 'N/A' ? `Date Range: ${dateInfo}` : ''}
 ${timeInfo ? `Time Range: ${timeInfo}` : ''}
 

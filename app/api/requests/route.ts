@@ -4,6 +4,7 @@ import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { createRequestSchema, reviewRequestSchema } from '@/lib/validations/schemas'
 import { sendRequestNotificationEmail, sendRequestConfirmationEmail } from '@/lib/utils/email'
+import { getRequestNotificationRecipientEmails } from '@/lib/utils/request-notification-recipients'
 import {
   calculateMinutesFromTimeRange,
   getAdjustmentTypeFromRequestType,
@@ -99,12 +100,14 @@ export async function POST(request: NextRequest) {
         const userData = userResult.data as { email: string; full_name: string | null }
         const teamData = teamResult.data as { name: string }
         const userName = userData.full_name || userData.email
-        
+        const recipientEmails = await getRequestNotificationRecipientEmails(supabase, team_id)
+
         console.log('[EMAIL] 📧 Preparing to send emails for request:', {
           requestType: request_type,
           userName,
           userEmail: userData.email,
           teamName: teamData.name,
+          recipientCount: recipientEmails.length,
           requestedData: requested_data
         })
         
@@ -118,7 +121,8 @@ export async function POST(request: NextRequest) {
           requested_data?.date_from || requested_data?.date,
           requested_data?.date_to || requested_data?.date,
           requested_data?.time_from,
-          requested_data?.time_to
+          requested_data?.time_to,
+          recipientEmails
         )
         
         // Send confirmation to requester
