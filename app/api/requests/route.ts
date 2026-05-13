@@ -10,16 +10,14 @@ import {
   getAdjustmentTypeFromRequestType,
   getEffectiveDateFromRequestData,
 } from '@/lib/utils/request-helpers'
+import {
+  isTimeEntryEditValidationError,
+  normalizeIso,
+  validateBreakSegmentEdit,
+  validateTimeSessionEdit,
+} from '@/lib/utils/time-entry-edit-validation'
 import { z } from 'zod'
 
-function normalizeIso(value?: string | null): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid timestamp')
-  }
-  return date.toISOString()
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -204,6 +202,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    const requestTypeUpper = (requestData as { request_type: string }).request_type.toUpperCase()
+    const requestedData = requestData.requested_data as any
+
     const isSuperAdminUser = isSuperAdmin(user)
 
     if (!isSuperAdminUser) {
@@ -220,6 +221,38 @@ export async function PATCH(request: NextRequest) {
           { error: 'Only managers and admins can review requests' },
           { status: 403 }
         )
+      }
+    }
+
+    if (status === 'APPROVED' && requestedData && requestTypeUpper.includes('TIME') && requestTypeUpper.includes('ENTRY') && requestTypeUpper.includes('EDIT')) {
+      if (requestedData.edit_type === 'TIME_SESSION') {
+        const sessionId = requestedData.time_session_id
+        if (sessionId && (requestedData.new_clock_in_at || requestedData.new_clock_out_at)) {
+          const validationResult = await validateTimeSessionEdit(supabase, {
+            timeSessionId: sessionId,
+            userId: (requestData as any).user_id,
+            teamId: (requestData as any).team_id,
+            newClockInAt: requestedData.new_clock_in_at,
+            newClockOutAt: requestedData.new_clock_out_at,
+          })
+          if (isTimeEntryEditValidationError(validationResult)) {
+            return NextResponse.json({ error: validationResult.error }, { status: validationResult.status })
+          }
+        }
+      } else if (requestedData.edit_type === 'BREAK_SEGMENT') {
+        const breakSegmentId = requestedData.break_segment_id
+        if (breakSegmentId && (requestedData.new_break_start_at || requestedData.new_break_end_at)) {
+          const validationResult = await validateBreakSegmentEdit(supabase, {
+            breakSegmentId,
+            userId: (requestData as any).user_id,
+            teamId: (requestData as any).team_id,
+            newBreakStartAt: requestedData.new_break_start_at,
+            newBreakEndAt: requestedData.new_break_end_at,
+          })
+          if (isTimeEntryEditValidationError(validationResult)) {
+            return NextResponse.json({ error: validationResult.error }, { status: validationResult.status })
+          }
+        }
       }
     }
 
@@ -243,9 +276,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // If approved, handle break-specific requests or create adjustment from the request data
-    if (status === 'APPROVED' && requestData.requested_data) {
-      const requestedData = requestData.requested_data as any
-      const requestTypeUpper = requestData.request_type.toUpperCase()
+    if (status === 'APPROVED' && requestedData) {
 
       // Handle "Forgot to Log Break" or "Forgot to Log Lunch"
       if (requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))) {
