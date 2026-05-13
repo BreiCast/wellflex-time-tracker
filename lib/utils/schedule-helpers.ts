@@ -1,8 +1,5 @@
-/**
- * Colombia uses America/Bogota (UTC-5, no DST).
- * Offset in minutes: local time = UTC - 5 hours.
- */
-export const COLOMBIA_UTC_OFFSET_MINUTES = -300
+import { COLOMBIA_UTC_OFFSET_MINUTES } from './date'
+export { COLOMBIA_UTC_OFFSET_MINUTES } from './date'
 
 export interface LocalDateParts {
   y: number

@@ -17,6 +17,7 @@ import {
   validateTimeSessionEdit,
 } from '@/lib/utils/time-entry-edit-validation'
 import { z } from 'zod'
+import { buildBusinessBreakInterval, type BusinessBreakInterval } from '@/lib/utils/date'
 
 
 export async function POST(request: NextRequest) {
@@ -692,56 +693,66 @@ export async function PATCH(request: NextRequest) {
         const breakType = requestedData.break_type || (requestTypeUpper.includes('LUNCH') ? 'LUNCH' : 'BREAK')
 
         if (breakDate && timeFrom && timeTo) {
-          // Find the time_session for this date
-          const dateStart = new Date(breakDate)
-          dateStart.setHours(0, 0, 0, 0)
-          const dateEnd = new Date(breakDate)
-          dateEnd.setHours(23, 59, 59, 999)
+          let breakInterval: BusinessBreakInterval | null = null
 
-          const { data: sessions } = await supabase
-            .from('time_sessions')
-            .select('id')
-            .eq('user_id', (requestData as any).user_id)
-            .eq('team_id', (requestData as any).team_id)
-            .gte('clock_in_at', dateStart.toISOString())
-            .lte('clock_in_at', dateEnd.toISOString())
-            .order('clock_in_at', { ascending: false })
-            .limit(1)
+          try {
+            breakInterval = buildBusinessBreakInterval({
+              date: breakDate,
+              timeFrom,
+              timeTo,
+            })
+          } catch (intervalError) {
+            console.error('[REQUESTS] Invalid break interval for approved request:', {
+              error: intervalError instanceof Error ? intervalError.message : intervalError,
+              requestId: request_id,
+              requestedData,
+            })
+          }
 
-          if (sessions && sessions.length > 0) {
-            const sessionId = (sessions[0] as { id: string }).id
+          if (breakInterval) {
+            // Find the time_session for this Colombia business date, not the server timezone date.
+            const { data: sessions } = await supabase
+              .from('time_sessions')
+              .select('id')
+              .eq('user_id', (requestData as any).user_id)
+              .eq('team_id', (requestData as any).team_id)
+              .gte('clock_in_at', breakInterval.businessDayStartIso)
+              .lte('clock_in_at', breakInterval.businessDayEndIso)
+              .order('clock_in_at', { ascending: false })
+              .limit(1)
 
-            // Combine date and time to create full timestamps
-            const breakStartStr = `${breakDate}T${timeFrom}:00`
-            const breakEndStr = `${breakDate}T${timeTo}:00`
+            if (sessions && sessions.length > 0) {
+              const sessionId = (sessions[0] as { id: string }).id
 
-            // Create the break segment
-            const { error: breakError } = await supabase
-              .from('break_segments')
-              .insert({
-                time_session_id: sessionId,
-                break_type: breakType,
-                break_start_at: new Date(breakStartStr).toISOString(),
-                break_end_at: new Date(breakEndStr).toISOString(),
-                created_by: (requestData as any).user_id,
-              } as any)
+              // Create the break segment
+              const { error: breakError } = await supabase
+                .from('break_segments')
+                .insert({
+                  time_session_id: sessionId,
+                  break_type: breakType,
+                  break_start_at: breakInterval.startIso,
+                  break_end_at: breakInterval.endIso,
+                  created_by: (requestData as any).user_id,
+                } as any)
 
-            if (breakError) {
-              console.error('[REQUESTS] Error creating break segment:', {
-                error: breakError,
-                requestId: request_id,
-                requestedData,
-              })
+              if (breakError) {
+                console.error('[REQUESTS] Error creating break segment:', {
+                  error: breakError,
+                  requestId: request_id,
+                  requestedData,
+                })
+              } else {
+                console.log('[REQUESTS] ✅ Auto-created break segment for approved request:', {
+                  requestId: request_id,
+                  breakType,
+                  breakStart: breakInterval.startIso,
+                  breakEnd: breakInterval.endIso,
+                  durationMinutes: breakInterval.durationMinutes,
+                })
+              }
             } else {
-              console.log('[REQUESTS] ✅ Auto-created break segment for approved request:', {
-                requestId: request_id,
-                breakType,
-                breakStart: breakStartStr,
-                breakEnd: breakEndStr,
-              })
+              console.error('[REQUESTS] No time session found for break date:', breakDate)
             }
-          } else {
-            console.error('[REQUESTS] No time session found for break date:', breakDate)
           }
         }
       }
