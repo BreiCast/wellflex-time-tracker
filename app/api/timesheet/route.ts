@@ -61,12 +61,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const startDate = new Date(start_date)
-    const endDate = new Date(end_date)
+    const startDate = new Date(`${start_date}T00:00:00.000Z`)
+    const endDate = new Date(`${end_date}T23:59:59.999Z`)
 
     // Enforce maximum date range (90 days) to prevent excessive queries
+    // Keep this based on calendar dates rather than the inclusive end timestamp.
     const maxDays = 90
-    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+    const millisecondsPerDay = 1000 * 60 * 60 * 24
+    const endCalendarDate = new Date(`${end_date}T00:00:00.000Z`)
+    const daysDiff = Math.floor((endCalendarDate.getTime() - startDate.getTime()) / millisecondsPerDay) + 1
     if (daysDiff > maxDays) {
       return NextResponse.json(
         { error: `Date range cannot exceed ${maxDays} days. Please select a smaller range.` },
