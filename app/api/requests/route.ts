@@ -10,16 +10,14 @@ import {
   getAdjustmentTypeFromRequestType,
   getEffectiveDateFromRequestData,
 } from '@/lib/utils/request-helpers'
+import {
+  isTimeEntryEditValidationError,
+  normalizeIso,
+  validateBreakSegmentEdit,
+  validateTimeSessionEdit,
+} from '@/lib/utils/time-entry-edit-validation'
 import { z } from 'zod'
 
-function normalizeIso(value?: string | null): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid timestamp')
-  }
-  return date.toISOString()
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -597,6 +595,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    const requestTypeUpper = (requestData as { request_type: string }).request_type.toUpperCase()
+    const requestedData = requestData.requested_data as any
+
     const isSuperAdminUser = isSuperAdmin(user)
 
     if (!isSuperAdminUser) {
@@ -628,6 +629,35 @@ export async function PATCH(request: NextRequest) {
           { error: correctionResult.error, details: correctionResult.details },
           { status: 422 }
         )
+    if (status === 'APPROVED' && requestedData && requestTypeUpper.includes('TIME') && requestTypeUpper.includes('ENTRY') && requestTypeUpper.includes('EDIT')) {
+      if (requestedData.edit_type === 'TIME_SESSION') {
+        const sessionId = requestedData.time_session_id
+        if (sessionId && (requestedData.new_clock_in_at || requestedData.new_clock_out_at)) {
+          const validationResult = await validateTimeSessionEdit(supabase, {
+            timeSessionId: sessionId,
+            userId: (requestData as any).user_id,
+            teamId: (requestData as any).team_id,
+            newClockInAt: requestedData.new_clock_in_at,
+            newClockOutAt: requestedData.new_clock_out_at,
+          })
+          if (isTimeEntryEditValidationError(validationResult)) {
+            return NextResponse.json({ error: validationResult.error }, { status: validationResult.status })
+          }
+        }
+      } else if (requestedData.edit_type === 'BREAK_SEGMENT') {
+        const breakSegmentId = requestedData.break_segment_id
+        if (breakSegmentId && (requestedData.new_break_start_at || requestedData.new_break_end_at)) {
+          const validationResult = await validateBreakSegmentEdit(supabase, {
+            breakSegmentId,
+            userId: (requestData as any).user_id,
+            teamId: (requestData as any).team_id,
+            newBreakStartAt: requestedData.new_break_start_at,
+            newBreakEndAt: requestedData.new_break_end_at,
+          })
+          if (isTimeEntryEditValidationError(validationResult)) {
+            return NextResponse.json({ error: validationResult.error }, { status: validationResult.status })
+          }
+        }
       }
     }
 
@@ -649,6 +679,313 @@ export async function PATCH(request: NextRequest) {
         { error: error?.message || 'Request could not be reviewed' },
         { status: 400 }
       )
+    }
+
+    // If approved, handle break-specific requests or create adjustment from the request data
+    if (status === 'APPROVED' && requestedData) {
+
+      // Handle "Forgot to Log Break" or "Forgot to Log Lunch"
+      if (requestTypeUpper.includes('FORGOT') && (requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH'))) {
+        const breakDate = requestedData.date || requestedData.date_from
+        const timeFrom = requestedData.time_from
+        const timeTo = requestedData.time_to
+        const breakType = requestedData.break_type || (requestTypeUpper.includes('LUNCH') ? 'LUNCH' : 'BREAK')
+
+        if (breakDate && timeFrom && timeTo) {
+          // Find the time_session for this date
+          const dateStart = new Date(breakDate)
+          dateStart.setHours(0, 0, 0, 0)
+          const dateEnd = new Date(breakDate)
+          dateEnd.setHours(23, 59, 59, 999)
+
+          const { data: sessions } = await supabase
+            .from('time_sessions')
+            .select('id')
+            .eq('user_id', (requestData as any).user_id)
+            .eq('team_id', (requestData as any).team_id)
+            .gte('clock_in_at', dateStart.toISOString())
+            .lte('clock_in_at', dateEnd.toISOString())
+            .order('clock_in_at', { ascending: false })
+            .limit(1)
+
+          if (sessions && sessions.length > 0) {
+            const sessionId = (sessions[0] as { id: string }).id
+
+            // Combine date and time to create full timestamps
+            const breakStartStr = `${breakDate}T${timeFrom}:00`
+            const breakEndStr = `${breakDate}T${timeTo}:00`
+
+            // Create the break segment
+            const { error: breakError } = await supabase
+              .from('break_segments')
+              .insert({
+                time_session_id: sessionId,
+                break_type: breakType,
+                break_start_at: new Date(breakStartStr).toISOString(),
+                break_end_at: new Date(breakEndStr).toISOString(),
+                created_by: (requestData as any).user_id,
+              } as any)
+
+            if (breakError) {
+              console.error('[REQUESTS] Error creating break segment:', {
+                error: breakError,
+                requestId: request_id,
+                requestedData,
+              })
+            } else {
+              console.log('[REQUESTS] ✅ Auto-created break segment for approved request:', {
+                requestId: request_id,
+                breakType,
+                breakStart: breakStartStr,
+                breakEnd: breakEndStr,
+              })
+            }
+          } else {
+            console.error('[REQUESTS] No time session found for break date:', breakDate)
+          }
+        }
+      }
+      // Handle "Break/Lunch Duration Adjustment"
+      else if ((requestTypeUpper.includes('BREAK') || requestTypeUpper.includes('LUNCH')) && requestTypeUpper.includes('ADJUSTMENT')) {
+        const breakSegmentId = requestedData.break_segment_id
+        const currentDuration = requestedData.current_duration_minutes
+        const adjustedDuration = requestedData.adjusted_duration_minutes
+
+        if (breakSegmentId && typeof currentDuration === 'number' && typeof adjustedDuration === 'number') {
+          // Get the break segment scoped to the request's user/team
+          const { data: breakSegment } = await supabase
+            .from('break_segments')
+            .select('id, break_start_at, break_end_at, time_session_id, time_sessions!inner(user_id, team_id)')
+            .eq('id', breakSegmentId)
+            .eq('time_sessions.user_id', (requestData as any).user_id)
+            .eq('time_sessions.team_id', (requestData as any).team_id)
+            .single()
+
+          if (breakSegment) {
+            const breakStart = new Date((breakSegment as any).break_start_at)
+            // Calculate new break_end_at based on adjusted duration
+            const newBreakEnd = new Date(breakStart.getTime() + adjustedDuration * 60 * 1000)
+
+            // Directly update the break_segment's break_end_at
+            const { error: updateError } = await supabase
+              .from('break_segments')
+              .update({ break_end_at: newBreakEnd.toISOString() })
+              .eq('id', breakSegmentId)
+
+            if (updateError) {
+              console.error('[REQUESTS] Error updating break segment:', {
+                error: updateError,
+                requestId: request_id,
+                breakSegmentId,
+                adjustedDuration,
+              })
+            } else {
+              console.log('[REQUESTS] ✅ Updated break segment duration:', {
+                requestId: request_id,
+                breakSegmentId,
+                currentDuration,
+                adjustedDuration,
+                newBreakEnd: newBreakEnd.toISOString(),
+              })
+            }
+          } else {
+            console.error('[REQUESTS] Break segment not found or not authorized for request:', {
+              requestId: request_id,
+              breakSegmentId,
+              userId: (requestData as any).user_id,
+              teamId: (requestData as any).team_id,
+            })
+          }
+        }
+      }
+      // Handle "Time Entry Edit"
+      else if (requestTypeUpper.includes('TIME') && requestTypeUpper.includes('ENTRY') && requestTypeUpper.includes('EDIT')) {
+        const editType = requestedData.edit_type
+
+        if (editType === 'TIME_SESSION') {
+          const sessionId = requestedData.time_session_id
+          const newClockIn = normalizeIso(requestedData.new_clock_in_at)
+          const newClockOut = normalizeIso(requestedData.new_clock_out_at)
+          if (sessionId && (newClockIn || newClockOut)) {
+            const { data: session } = await supabase
+              .from('time_sessions')
+              .select('id, user_id, team_id, clock_in_at, clock_out_at')
+              .eq('id', sessionId)
+              .eq('user_id', (requestData as any).user_id)
+              .eq('team_id', (requestData as any).team_id)
+              .single()
+
+            if (session) {
+              const currentClockIn = (session as any).clock_in_at
+              const currentClockOut = (session as any).clock_out_at
+              const finalClockIn = newClockIn ?? currentClockIn
+              const finalClockOut = newClockOut ?? currentClockOut
+              if (finalClockIn && finalClockOut && new Date(finalClockOut) < new Date(finalClockIn)) {
+                console.error('[REQUESTS] Invalid time session edit: clock-out before clock-in', {
+                  requestId: request_id,
+                  sessionId,
+                  finalClockIn,
+                  finalClockOut,
+                })
+              } else {
+                const updates: Record<string, string> = {}
+                if (newClockIn) updates.clock_in_at = newClockIn
+                if (newClockOut) updates.clock_out_at = newClockOut
+                const { error: updateError } = await supabase
+                  .from('time_sessions')
+                  .update(updates)
+                  .eq('id', sessionId)
+
+                if (updateError) {
+                  console.error('[REQUESTS] Error updating time session:', {
+                    error: updateError,
+                    requestId: request_id,
+                    sessionId,
+                  })
+                }
+              }
+            }
+          }
+        } else if (editType === 'BREAK_SEGMENT') {
+          const breakSegmentId = requestedData.break_segment_id
+          const newBreakStart = normalizeIso(requestedData.new_break_start_at)
+          const newBreakEnd = normalizeIso(requestedData.new_break_end_at)
+          if (breakSegmentId && (newBreakStart || newBreakEnd)) {
+            const { data: breakSeg } = await supabase
+              .from('break_segments')
+              .select('id, break_start_at, break_end_at, time_session_id, time_sessions!inner(user_id, team_id)')
+              .eq('id', breakSegmentId)
+              .eq('time_sessions.user_id', (requestData as any).user_id)
+              .eq('time_sessions.team_id', (requestData as any).team_id)
+              .single()
+
+            if (breakSeg) {
+              const currentBreakStart = (breakSeg as any).break_start_at
+              const currentBreakEnd = (breakSeg as any).break_end_at
+              const finalBreakStart = newBreakStart ?? currentBreakStart
+              const finalBreakEnd = newBreakEnd ?? currentBreakEnd
+              if (finalBreakStart && finalBreakEnd && new Date(finalBreakEnd) < new Date(finalBreakStart)) {
+                console.error('[REQUESTS] Invalid break edit: break_end before break_start', {
+                  requestId: request_id,
+                  breakSegmentId,
+                  finalBreakStart,
+                  finalBreakEnd,
+                })
+              } else {
+                const updates: Record<string, string> = {}
+                if (newBreakStart) updates.break_start_at = newBreakStart
+                if (newBreakEnd) updates.break_end_at = newBreakEnd
+                const { error: updateError } = await supabase
+                  .from('break_segments')
+                  .update(updates)
+                  .eq('id', breakSegmentId)
+
+                if (updateError) {
+                  console.error('[REQUESTS] Error updating break segment (edit):', {
+                    error: updateError,
+                    requestId: request_id,
+                    breakSegmentId,
+                  })
+                }
+              }
+            }
+          }
+        } else if (editType === 'NOTE') {
+          const noteId = requestedData.note_id
+          const newContent = typeof requestedData.new_content === 'string' ? requestedData.new_content.trim() : ''
+          if (noteId && newContent) {
+            const { data: note } = await supabase
+              .from('notes')
+              .select('id, time_session_id, time_sessions!inner(user_id, team_id)')
+              .eq('id', noteId)
+              .eq('time_sessions.user_id', (requestData as any).user_id)
+              .eq('time_sessions.team_id', (requestData as any).team_id)
+              .single()
+
+            if (note) {
+              const { error: updateError } = await supabase
+                .from('notes')
+                .update({ content: newContent })
+                .eq('id', noteId)
+
+              if (updateError) {
+                console.error('[REQUESTS] Error updating note (edit):', {
+                  error: updateError,
+                  requestId: request_id,
+                  noteId,
+                })
+              }
+            }
+          }
+        }
+      }
+      // Handle "Work From Home" - no adjustments needed, just approve/reject
+      else if (requestTypeUpper.includes('WORK FROM HOME')) {
+        // Work From Home requests don't create time adjustments or affect PTO balances
+        // They're just informational requests for location tracking
+        console.log('[REQUESTS] ✅ Work From Home request approved (no adjustments created):', {
+          requestId: request_id,
+          requestType: requestData.request_type,
+        })
+      }
+      // Handle other request types (existing logic)
+      else {
+        const effectiveDate = getEffectiveDateFromRequestData(requestedData)
+
+        // Only create adjustment if we have time information or it's a time-related request
+        if (effectiveDate && (requestedData.time_from || requestedData.time_to || requestedData.time)) {
+          const minutes = calculateMinutesFromTimeRange(
+            requestedData.time_from || requestedData.time,
+            requestedData.time_to || requestedData.time
+          )
+
+          // If we have a time range, use calculated minutes; otherwise default to 8 hours (480 minutes) for PTO/leave
+          const adjustmentMinutes = minutes !== null 
+            ? minutes 
+            : (requestData.request_type.toUpperCase().includes('PTO') || 
+               requestData.request_type.toUpperCase().includes('LEAVE') ||
+               requestData.request_type.toUpperCase().includes('VACATION') ||
+               requestData.request_type.toUpperCase().includes('MEDICAL'))
+              ? 480 // 8 hours default for leave requests
+              : 0
+
+          // Only create adjustment if we have valid minutes
+          if (adjustmentMinutes > 0 || requestedData.time_from || requestedData.time_to || requestedData.time) {
+            const adjustmentType = getAdjustmentTypeFromRequestType(requestData.request_type)
+
+            const { error: adjustmentError } = await supabase
+              .from('adjustments')
+              .insert({
+                request_id: request_id,
+                user_id: (requestData as any).user_id,
+                team_id: (requestData as any).team_id,
+                time_session_id: (requestData as any).time_session_id || null,
+                adjustment_type: adjustmentType,
+                minutes: adjustmentMinutes,
+                effective_date: effectiveDate,
+                description: `Auto-created from approved ${requestData.request_type} request`,
+                created_by: user.id,
+              } as any)
+
+            if (adjustmentError) {
+              console.error('[REQUESTS] Error creating adjustment:', {
+                error: adjustmentError,
+                requestId: request_id,
+                requestedData,
+              })
+              // Don't fail the request approval if adjustment creation fails
+              // Just log it - admin can create adjustment manually if needed
+            } else {
+              console.log('[REQUESTS] ✅ Auto-created adjustment for approved request:', {
+                requestId: request_id,
+                adjustmentType,
+                minutes: adjustmentMinutes,
+                effectiveDate,
+              })
+            }
+          }
+        }
+      }
     }
 
     return NextResponse.json({ request: updatedRequest })

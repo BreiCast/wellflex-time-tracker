@@ -111,4 +111,30 @@ describe('weekly totals (via calculateTimesheet)', () => {
     expect(dates).toContain('2026-01-27')
     expect(dates).toContain('2026-02-02')
   })
+
+  it('includes a midday session on the inclusive end date for a one-day range', () => {
+    const start = new Date('2026-01-21T00:00:00.000Z')
+    const end = new Date('2026-01-21T23:59:59.999Z')
+    const middaySession: Parameters<typeof calculateTimesheet>[0][number] = {
+      id: 'session-midday-end-date',
+      user_id: 'user-1',
+      team_id: 'team-1',
+      clock_in_at: '2026-01-21T12:00:00.000Z',
+      clock_out_at: '2026-01-21T13:30:00.000Z',
+      created_at: '2026-01-21T12:00:00.000Z',
+      created_by: 'user-1',
+    }
+
+    const entries = calculateTimesheet([middaySession], [], [], [], start, end)
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      date: '2026-01-21',
+      clockIn: '2026-01-21T12:00:00.000Z',
+      clockOut: '2026-01-21T13:30:00.000Z',
+      totalMinutes: 90,
+      workMinutes: 90,
+    })
+    expect(entries[0].sessions).toHaveLength(1)
+  })
 })

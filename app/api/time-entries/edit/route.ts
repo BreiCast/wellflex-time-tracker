@@ -4,6 +4,12 @@ import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { sendRequestConfirmationEmail, sendRequestNotificationEmail } from '@/lib/utils/email'
 import { getRequestNotificationRecipientEmails } from '@/lib/utils/request-notification-recipients'
+import {
+  isTimeEntryEditValidationError,
+  normalizeIso,
+  validateBreakSegmentEdit,
+  validateTimeSessionEdit,
+} from '@/lib/utils/time-entry-edit-validation'
 import { z } from 'zod'
 
 const editTimeEntrySchema = z.object({
@@ -19,14 +25,6 @@ const editTimeEntrySchema = z.object({
   reason: z.string().optional(),
 })
 
-function normalizeIso(value?: string | null): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid timestamp')
-  }
-  return date.toISOString()
-}
 
 function validateEditPayload(payload: z.infer<typeof editTimeEntrySchema>) {
   if (payload.edit_type === 'TIME_SESSION') {
@@ -138,17 +136,23 @@ export async function POST(request: NextRequest) {
     const newBreakEnd = normalizeIso(payload.new_break_end_at)
 
     if (payload.edit_type === 'TIME_SESSION') {
-      const finalClockIn = newClockIn ?? currentClockIn
-      const finalClockOut = newClockOut ?? currentClockOut
-      if (finalClockIn && finalClockOut && new Date(finalClockOut) < new Date(finalClockIn)) {
-        return NextResponse.json({ error: 'Clock out must be after clock in' }, { status: 400 })
+      const validationResult = await validateTimeSessionEdit(supabase, {
+        timeSessionId: payload.time_session_id!,
+        newClockInAt: payload.new_clock_in_at,
+        newClockOutAt: payload.new_clock_out_at,
+      })
+      if (isTimeEntryEditValidationError(validationResult)) {
+        return NextResponse.json({ error: validationResult.error }, { status: validationResult.status })
       }
     }
     if (payload.edit_type === 'BREAK_SEGMENT') {
-      const finalBreakStart = newBreakStart ?? currentBreakStart
-      const finalBreakEnd = newBreakEnd ?? currentBreakEnd
-      if (finalBreakStart && finalBreakEnd && new Date(finalBreakEnd) < new Date(finalBreakStart)) {
-        return NextResponse.json({ error: 'Break end must be after break start' }, { status: 400 })
+      const validationResult = await validateBreakSegmentEdit(supabase, {
+        breakSegmentId: payload.break_segment_id!,
+        newBreakStartAt: payload.new_break_start_at,
+        newBreakEndAt: payload.new_break_end_at,
+      })
+      if (isTimeEntryEditValidationError(validationResult)) {
+        return NextResponse.json({ error: validationResult.error }, { status: validationResult.status })
       }
     }
 
