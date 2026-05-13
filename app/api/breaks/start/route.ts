@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { breakStartSchema } from '@/lib/validations/schemas'
+import { getColombiaBusinessDayUtcBounds } from '@/lib/utils/schedule-helpers'
 import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
@@ -57,19 +58,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check daily limits for break types
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date(todayStart)
-    todayEnd.setDate(todayEnd.getDate() + 1)
+    // Check daily limits for break types using the business local calendar day.
+    const { start: todayStart, end: todayEnd } = getColombiaBusinessDayUtcBounds()
+    const todayStartIso = todayStart.toISOString()
+    const todayEndIso = todayEnd.toISOString()
 
     // Get all breaks for today (completed or active) for this user across all sessions
     const { data: todaySessions } = await supabase
       .from('time_sessions')
       .select('id')
       .eq('user_id', user.id)
-      .gte('clock_in_at', todayStart.toISOString())
-      .lt('clock_in_at', todayEnd.toISOString())
+      .gte('clock_in_at', todayStartIso)
+      .lt('clock_in_at', todayEndIso)
 
     const sessionIds = (todaySessions as Array<{ id: string }> | null)?.map(s => s.id) || []
 
@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
         .from('break_segments')
         .select('break_type, break_end_at')
         .in('time_session_id', sessionIds)
-        .gte('break_start_at', todayStart.toISOString())
-        .lt('break_start_at', todayEnd.toISOString())
+        .gte('break_start_at', todayStartIso)
+        .lt('break_start_at', todayEndIso)
 
       if (todayBreaks) {
         const breaks = todayBreaks as Array<{ break_type: 'BREAK' | 'LUNCH'; break_end_at: string | null }>
