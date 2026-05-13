@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { computeLateCheckInColombia, getColombiaDateParts } from './schedule-helpers'
+import {
+  computeLateCheckInColombia,
+  getColombiaBusinessDayUtcBounds,
+  getColombiaDateParts,
+} from './schedule-helpers'
 
 describe('schedule-helpers Colombia timezone', () => {
   it('derives Colombia day-of-week across UTC boundary', () => {
@@ -11,6 +15,15 @@ describe('schedule-helpers Colombia timezone', () => {
     expect(d).toBe(21)
     // 2026-02-21 is Saturday (6)
     expect(dayOfWeek).toBe(6)
+  })
+
+  it('computes Colombia business-day UTC bounds when UTC date differs from local date', () => {
+    // 2026-02-22 04:59 UTC == 2026-02-21 23:59 Colombia
+    const instant = new Date(Date.UTC(2026, 1, 22, 4, 59, 0))
+    const { start, end } = getColombiaBusinessDayUtcBounds(instant)
+
+    expect(start.toISOString()).toBe('2026-02-21T05:00:00.000Z')
+    expect(end.toISOString()).toBe('2026-02-22T05:00:00.000Z')
   })
 
   it('computes scheduled start in UTC for Colombia schedule', () => {

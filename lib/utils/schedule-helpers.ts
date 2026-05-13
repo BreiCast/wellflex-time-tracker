@@ -4,25 +4,67 @@
  */
 export const COLOMBIA_UTC_OFFSET_MINUTES = -300
 
-export interface ColombiaDateParts {
+export interface LocalDateParts {
   y: number
   m: number
   d: number
   dayOfWeek: number
 }
 
+export type ColombiaDateParts = LocalDateParts
+
+export interface UtcDayBounds {
+  start: Date
+  end: Date
+}
+
+/**
+ * Get the calendar date and day-of-week for a fixed UTC offset.
+ */
+export function getDatePartsForOffset(instant: Date, offsetMinutes: number): LocalDateParts {
+  const localAdjusted = new Date(
+    instant.getTime() + offsetMinutes * 60 * 1000
+  )
+  const y = localAdjusted.getUTCFullYear()
+  const m = localAdjusted.getUTCMonth()
+  const d = localAdjusted.getUTCDate()
+  const dayOfWeek = new Date(Date.UTC(y, m, d, 12, 0, 0)).getUTCDay()
+  return { y, m, d, dayOfWeek }
+}
+
+/**
+ * Return UTC instants bounding the local calendar day for a fixed UTC offset.
+ * The end instant is exclusive and is exactly 24 hours after the start instant.
+ */
+export function getUtcDayBoundsForOffset(
+  instant: Date,
+  offsetMinutes: number
+): UtcDayBounds {
+  const parts = getDatePartsForOffset(instant, offsetMinutes)
+  const startMs =
+    Date.UTC(parts.y, parts.m, parts.d, 0, 0, 0, 0) - offsetMinutes * 60 * 1000
+  const endMs = startMs + 24 * 60 * 60 * 1000
+
+  return {
+    start: new Date(startMs),
+    end: new Date(endMs),
+  }
+}
+
 /**
  * Get the calendar date and day-of-week in Colombian timezone for a given instant.
  */
 export function getColombiaDateParts(instant: Date): ColombiaDateParts {
-  const colombiaAdjusted = new Date(
-    instant.getTime() + COLOMBIA_UTC_OFFSET_MINUTES * 60 * 1000
-  )
-  const y = colombiaAdjusted.getUTCFullYear()
-  const m = colombiaAdjusted.getUTCMonth()
-  const d = colombiaAdjusted.getUTCDate()
-  const dayOfWeek = new Date(Date.UTC(y, m, d, 12, 0, 0)).getUTCDay()
-  return { y, m, d, dayOfWeek }
+  return getDatePartsForOffset(instant, COLOMBIA_UTC_OFFSET_MINUTES)
+}
+
+/**
+ * Return UTC instants bounding the Colombian business calendar day.
+ */
+export function getColombiaBusinessDayUtcBounds(
+  instant: Date = new Date()
+): UtcDayBounds {
+  return getUtcDayBoundsForOffset(instant, COLOMBIA_UTC_OFFSET_MINUTES)
 }
 
 /**
