@@ -323,6 +323,38 @@ ALTER TABLE public.adjustments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
 
+-- Security definer functions to avoid RLS recursion
+-- (defined before any policy that references them)
+CREATE OR REPLACE FUNCTION public.is_team_member(team_uuid UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.team_members
+        WHERE team_id = team_uuid AND user_id = user_uuid
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_team_admin(team_uuid UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.team_members
+        WHERE team_id = team_uuid
+        AND user_id = user_uuid
+        AND role = 'ADMIN'
+    );
+END;
+$$;
+
 -- RLS Policies for users
 CREATE POLICY "Users can view own profile"
     ON public.users FOR SELECT
@@ -364,37 +396,6 @@ CREATE POLICY "Admins can update teams"
             WHERE team_id = teams.id AND user_id = auth.uid() AND role = 'ADMIN'
         )
     );
-
--- Security definer functions to avoid RLS recursion
-CREATE OR REPLACE FUNCTION public.is_team_member(team_uuid UUID, user_uuid UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-STABLE
-AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM public.team_members
-        WHERE team_id = team_uuid AND user_id = user_uuid
-    );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.is_team_admin(team_uuid UUID, user_uuid UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-STABLE
-AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM public.team_members
-        WHERE team_id = team_uuid 
-        AND user_id = user_uuid 
-        AND role = 'ADMIN'
-    );
-END;
-$$;
 
 -- RLS Policies for team_members
 -- Using security definer functions to avoid infinite recursion
