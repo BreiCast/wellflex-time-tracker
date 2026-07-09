@@ -626,10 +626,14 @@ export async function PATCH(request: NextRequest) {
       )
 
       if (!correctionResult.ok) {
+        const failure = correctionResult as Extract<CorrectionResult, { ok: false }>
         return NextResponse.json(
-          { error: correctionResult.error, details: correctionResult.details },
+          { error: failure.error, details: failure.details },
           { status: 422 }
         )
+      }
+    }
+
     if (status === 'APPROVED' && requestedData && requestTypeUpper.includes('TIME') && requestTypeUpper.includes('ENTRY') && requestTypeUpper.includes('EDIT')) {
       if (requestedData.edit_type === 'TIME_SESSION') {
         const sessionId = requestedData.time_session_id
