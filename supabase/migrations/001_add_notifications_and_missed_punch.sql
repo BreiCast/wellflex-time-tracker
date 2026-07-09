@@ -18,7 +18,7 @@ CREATE TYPE notification_status AS ENUM (
 
 -- Organization settings table (global defaults)
 CREATE TABLE public.organization_settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
   missed_punch_threshold_hours INTEGER NOT NULL DEFAULT 12,
   clock_in_reminder_window_minutes INTEGER NOT NULL DEFAULT 30,
   clock_out_reminder_before_minutes INTEGER NOT NULL DEFAULT 15,
@@ -29,7 +29,9 @@ CREATE TABLE public.organization_settings (
   quiet_hours_end TIME NOT NULL DEFAULT '06:00:00',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT single_row CHECK (id = (SELECT id FROM public.organization_settings LIMIT 1))
+  -- Enforce a single settings row: every row must carry this fixed id,
+  -- and the primary key guarantees uniqueness, so at most one row can exist.
+  CONSTRAINT single_row CHECK (id = '00000000-0000-0000-0000-000000000001'::uuid)
 );
 
 -- Insert default organization settings
