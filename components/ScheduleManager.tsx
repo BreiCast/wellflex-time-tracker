@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui'
 
 interface Schedule {
   id: string
@@ -29,6 +30,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', onScheduleUpdated }: ScheduleManagerProps) {
   const toast = useToast()
+  const confirm = useConfirm()
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [editingDay, setEditingDay] = useState<number | null>(null)
@@ -170,7 +172,12 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
   }
 
   const handleDeleteSchedule = async (scheduleId: string) => {
-    if (!confirm('Delete this schedule?')) return
+    if (!(await confirm({
+      title: 'Delete schedule',
+      message: 'Delete this schedule?',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    }))) return
 
     try {
       const supabase = createClient()

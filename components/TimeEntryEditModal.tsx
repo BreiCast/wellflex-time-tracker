@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Modal } from '@/components/ui'
 
 type EditType = 'TIME_SESSION' | 'BREAK_SEGMENT' | 'NOTE'
 
@@ -51,8 +52,6 @@ export default function TimeEntryEditModal({
   const [breakStart, setBreakStart] = useState(initialBreakStart)
   const [breakEnd, setBreakEnd] = useState(initialBreakEnd)
   const [content, setContent] = useState(target.content || '')
-
-  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,8 +107,7 @@ export default function TimeEntryEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <Modal open={isOpen} onClose={onClose} label="Edit time entry" className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100">
           <h3 className="text-xl font-black text-slate-900">Edit Time Entry</h3>
           <p className="text-sm text-slate-500 mt-1">
@@ -211,7 +209,6 @@ export default function TimeEntryEditModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
