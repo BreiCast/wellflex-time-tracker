@@ -29,17 +29,34 @@ export async function PATCH(
     const isSuperAdminUser = isSuperAdmin(admin)
 
     if (!isSuperAdminUser) {
-      // Verify admin is actually an admin of at least one team
+      // The requester must be an ADMIN of at least one team...
       const { data: adminTeams } = await supabase
         .from('team_members')
         .select('team_id')
         .eq('user_id', admin.id)
         .eq('role', 'ADMIN')
-        .limit(1)
 
-      if (!adminTeams || adminTeams.length === 0) {
+      const adminTeamIds = (adminTeams || []).map((t: { team_id: string }) => t.team_id)
+      if (adminTeamIds.length === 0) {
         return NextResponse.json(
           { error: 'Only admins can update user names' },
+          { status: 403 }
+        )
+      }
+
+      // ...and the target user must be a member of one of those teams. This
+      // prevents an admin of team A from renaming a user they share no team with.
+      const { data: sharedMembership } = await supabase
+        .from('team_members')
+        .select('id')
+        .eq('user_id', userId)
+        .in('team_id', adminTeamIds)
+        .limit(1)
+        .maybeSingle()
+
+      if (!sharedMembership) {
+        return NextResponse.json(
+          { error: 'You can only update users on teams you administer' },
           { status: 403 }
         )
       }
@@ -66,8 +83,9 @@ export async function PATCH(
       .eq('id', userId)
 
     if (updateError) {
+      console.error('[USERS] Failed to update user name:', updateError.message)
       return NextResponse.json(
-        { error: 'Failed to update user name', details: updateError.message },
+        { error: 'Failed to update user name' },
         { status: 400 }
       )
     }
