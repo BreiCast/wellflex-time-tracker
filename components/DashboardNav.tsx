@@ -9,11 +9,21 @@ interface DashboardNavProps {
   activeTab: string
   onTabChange: (tab: string) => void
   userEmail?: string
+  userName?: string
   userRole?: string
   onLogout: () => void
 }
 
-export default function DashboardNav({ activeTab, onTabChange, userEmail, userRole, onLogout }: DashboardNavProps) {
+/** Two-letter initials from a name (preferred) or the email's local part. */
+function computeInitials(name?: string, email?: string): string {
+  const source = (name && name.trim()) || (email ? email.split('@')[0] : '')
+  if (!source) return 'ME'
+  const parts = source.split(/[\s._-]+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return source.slice(0, 2).toUpperCase()
+}
+
+export default function DashboardNav({ activeTab, onTabChange, userEmail, userName, userRole, onLogout }: DashboardNavProps) {
   const router = useRouter()
   const pathname = usePathname()
   const currentTab = pathname === '/tracking' ? 'tracking' : activeTab
@@ -116,10 +126,10 @@ export default function DashboardNav({ activeTab, onTabChange, userEmail, userRo
               className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white/90 px-3 py-2 shadow-sm hover:bg-slate-50 transition-colors"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-black uppercase">
-                {userEmail ? userEmail.slice(0, 2) : 'ME'}
+                {computeInitials(userName, userEmail)}
               </span>
               <div className="hidden md:flex flex-col items-start">
-                <span className="text-sm font-semibold text-slate-700 leading-tight">{userEmail || 'Account'}</span>
+                <span className="max-w-[14rem] truncate text-sm font-semibold text-slate-700 leading-tight">{userName || userEmail || 'Account'}</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{userRole || 'Member'}</span>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-500 transition-transform ${menuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">

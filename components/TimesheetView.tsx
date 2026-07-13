@@ -491,10 +491,12 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                   return newSet
                                 })
                               }}
-                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                              aria-label={`Show ${entry.breaks.length} break(s)`}
                               title={`${entry.breaks.length} break(s)`}
                             >
-                              {entry.breaks.length} 📋
+                              <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                              {entry.breaks.length}
                             </button>
                           )}
                         </div>
@@ -527,10 +529,12 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                   return newSet
                                 })
                               }}
-                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                              aria-label={`Show ${entry.adjustments.length} adjustment(s)`}
                               title={`${entry.adjustments.length} adjustment(s)`}
                             >
-                              {entry.adjustments.length} ⚙️
+                              <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" /></svg>
+                              {entry.adjustments.length}
                             </button>
                           )}
                           {entry.sessions && entry.sessions.length > 0 && (
@@ -547,10 +551,12 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                   return newSet
                                 })
                               }}
-                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                              aria-label={`Show ${entry.sessions.length} session(s)`}
                               title={`${entry.sessions.length} session(s)`}
                             >
-                              {entry.sessions.length} 🕒
+                              <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
+                              {entry.sessions.length}
                             </button>
                           )}
                           {entry.notes && entry.notes.length > 0 && (
@@ -567,10 +573,12 @@ export default function TimesheetView({ userId: initialUserId, teamId, isFullPag
                                   return newSet
                                 })
                               }}
-                              className="px-2 py-1 rounded-lg text-[10px] font-black bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                              aria-label={`Show ${entry.notes.length} note(s)`}
                               title={`${entry.notes.length} note(s)`}
                             >
-                              {entry.notes.length} 📝
+                              <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd" /></svg>
+                              {entry.notes.length}
                             </button>
                           )}
                         </div>

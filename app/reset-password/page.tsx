@@ -145,7 +145,7 @@ function ResetPasswordContent() {
           <div className="text-center mb-10">
             <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center">
               <Image 
-                src="/wellflex-logo.png" 
+                src="/wellflex_logo.jpg"
                 alt="Wellflex Logo" 
                 width={96}
                 height={96}
@@ -195,7 +195,7 @@ function ResetPasswordContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase tracking-widest text-xs font-wetrack">wetrack</h1>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter font-wetrack">wetrack</h1>
           </div>
 
           <div className="bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] rounded-[3rem] p-10 border border-slate-100 text-center">
@@ -229,7 +229,7 @@ function ResetPasswordContent() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">WELLFLEX</h1>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter font-wetrack">wetrack</h1>
           <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Security</p>
         </div>
 
