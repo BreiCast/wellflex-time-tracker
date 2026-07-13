@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
+import { canAssignRole } from '@/lib/auth/roles'
 import { z } from 'zod'
 
 const inviteSchema = z.object({
@@ -39,6 +40,14 @@ export async function POST(request: NextRequest) {
       if (!teamMember || !memberRole || !['ADMIN', 'MANAGER'].includes(memberRole)) {
         return NextResponse.json(
           { error: 'Only admins and managers can send invites' },
+          { status: 403 }
+        )
+      }
+
+      // Only admins/superadmins may grant elevated roles; managers add members only.
+      if (!canAssignRole({ isSuperAdmin: false, teamRole: memberRole }, role)) {
+        return NextResponse.json(
+          { error: 'Only admins can assign the MANAGER or ADMIN role. Managers can add members only.' },
           { status: 403 }
         )
       }
