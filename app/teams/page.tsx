@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Fragment, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { DEFAULT_TEAM_COLOR } from '@/lib/ui/tokens'
 import DashboardNav from '@/components/DashboardNav'
 import ScheduleManager from '@/components/ScheduleManager'
 
@@ -27,7 +28,7 @@ export default function TeamsPage() {
   // Create team state
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
-  const [newTeamColor, setNewTeamColor] = useState('#6366f1')
+  const [newTeamColor, setNewTeamColor] = useState(DEFAULT_TEAM_COLOR)
   const [creating, setCreating] = useState(false)
   
   // Edit team state - store full team data to avoid confusion
@@ -136,7 +137,7 @@ export default function TeamsPage() {
       }
 
       setNewTeamName('')
-      setNewTeamColor('#6366f1')
+      setNewTeamColor(DEFAULT_TEAM_COLOR)
       setShowCreateForm(false)
       setSuccess('Team created successfully!')
       await loadTeams()
@@ -183,7 +184,7 @@ export default function TeamsPage() {
         },
         body: JSON.stringify({
           name: editingTeam.name,
-          color: editingTeam.color || '#6366f1',
+          color: editingTeam.color || DEFAULT_TEAM_COLOR,
           min_working_count: editingTeam.min_working_count ?? null,
         }),
       })
@@ -374,7 +375,7 @@ export default function TeamsPage() {
                     onChange={(e) => setNewTeamColor(e.target.value)}
                     pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono font-bold"
-                    placeholder="#6366f1"
+                    placeholder={DEFAULT_TEAM_COLOR}
                   />
                   <div 
                     className="w-12 h-12 rounded-xl border-2 border-slate-200 shadow-sm"
@@ -448,13 +449,13 @@ export default function TeamsPage() {
                               <div className="flex items-center space-x-3">
                                 <input
                                   type="color"
-                                  value={editingTeam.color || '#6366f1'}
+                                  value={editingTeam.color || DEFAULT_TEAM_COLOR}
                                   onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
                                   className="w-12 h-10 rounded-lg border-2 border-slate-200 cursor-pointer"
                                 />
                                 <input
                                   type="text"
-                                  value={editingTeam.color || '#6366f1'}
+                                  value={editingTeam.color || DEFAULT_TEAM_COLOR}
                                   onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
                                   pattern="^#[0-9A-Fa-f]{6}$"
                                   className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-lg font-mono text-xs font-black text-slate-500"
@@ -480,7 +481,7 @@ export default function TeamsPage() {
                             <div className="flex items-center space-x-4">
                               <div 
                                 className="w-5 h-5 rounded-lg shadow-sm border-2 border-white ring-1 ring-slate-100"
-                                style={{ backgroundColor: team.color || '#6366f1' }}
+                                style={{ backgroundColor: team.color || DEFAULT_TEAM_COLOR }}
                               ></div>
                               <div className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{team.name}</div>
                             </div>
