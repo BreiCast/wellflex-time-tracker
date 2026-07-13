@@ -26,9 +26,12 @@ export async function PATCH(
     const body = await request.json()
     const { full_name } = updateUserNameSchema.parse(body)
 
+    const isSelf = userId === admin.id
     const isSuperAdminUser = isSuperAdmin(admin)
 
-    if (!isSuperAdminUser) {
+    // Users can always edit their own name. Otherwise the requester must be a
+    // superadmin, or an ADMIN of a team the target belongs to.
+    if (!isSelf && !isSuperAdminUser) {
       // The requester must be an ADMIN of at least one team...
       const { data: adminTeams } = await supabase
         .from('team_members')

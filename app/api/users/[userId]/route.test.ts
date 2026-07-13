@@ -101,4 +101,12 @@ describe('PATCH /api/users/[userId] authorization', () => {
     const res = await PATCH(patchReq(), { params: { userId: targetId } })
     expect(res.status).toBe(403)
   })
+
+  it('lets a non-admin user edit their own name (self-service)', async () => {
+    state.adminTeamIds = [] // requester is not an admin of any team
+    const res = await PATCH(patchReq(), { params: { userId: adminId } })
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.success).toBe(true)
+  })
 })
