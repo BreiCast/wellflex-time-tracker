@@ -3,8 +3,6 @@
 import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import ClockInOut from '@/components/ClockInOut'
-import ActiveSession from '@/components/ActiveSession'
 import TimesheetView from '@/components/TimesheetView'
 import RequestsView from '@/components/RequestsView'
 import CreateTeamForm from '@/components/CreateTeamForm'
@@ -19,8 +17,6 @@ function DashboardContent() {
   const searchParams = useSearchParams()
   const [user, setUser] = useState<any>(null)
   const [teams, setTeams] = useState<any[]>([])
-  const [activeSession, setActiveSession] = useState<any>(null)
-  const [activeBreak, setActiveBreak] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [activeTab, setActiveTab] = useState<string>('tracking')
@@ -130,30 +126,6 @@ function DashboardContent() {
       // Load user's teams
       await loadTeams()
 
-      // Load active session
-      const { data: sessionData } = await supabase
-        .from('time_sessions')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .is('clock_out_at', null)
-        .order('clock_in_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (sessionData) {
-        setActiveSession(sessionData)
-
-        // Load active break
-        const { data: breakData } = await supabase
-          .from('break_segments')
-          .select('*')
-          .eq('time_session_id', (sessionData as any).id)
-          .is('break_end_at', null)
-          .maybeSingle()
-
-        setActiveBreak(breakData || null)
-      }
-
       setLoading(false)
     }
 
@@ -164,36 +136,6 @@ function DashboardContent() {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
-  }
-
-  const refreshData = async () => {
-    await loadTeams()
-      // Reload active session - only select essential columns
-      if (user) {
-        const supabase = createClient()
-        const { data: sessionData } = await supabase
-          .from('time_sessions')
-          .select('id, user_id, team_id, clock_in_at, clock_out_at') // Only essential columns
-          .eq('user_id', user.id)
-          .is('clock_out_at', null)
-          .order('clock_in_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (sessionData) {
-          setActiveSession(sessionData)
-          const { data: breakData } = await supabase
-            .from('break_segments')
-            .select('id, time_session_id, break_type, break_start_at, break_end_at') // Only essential columns
-            .eq('time_session_id', (sessionData as any).id)
-            .is('break_end_at', null)
-            .maybeSingle()
-          setActiveBreak(breakData || null)
-        } else {
-          setActiveSession(null)
-          setActiveBreak(null)
-        }
-      }
   }
 
   const renderTabContent = () => {
@@ -219,32 +161,6 @@ function DashboardContent() {
     }
 
     switch (activeTab) {
-      case 'tracking':
-        return (
-          <div className="max-w-4xl mx-auto">
-            <TeamSelector
-              teams={teams}
-              selectedTeam={selectedTeam}
-              onTeamChange={setSelectedTeam}
-            />
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Time Tracking</h2>
-              {activeSession ? (
-                <ActiveSession
-                  session={activeSession}
-                  breakSegment={activeBreak}
-                  onSessionUpdate={refreshData}
-                />
-              ) : (
-                <ClockInOut
-                  teamId={selectedTeam}
-                  onSessionStart={refreshData}
-                />
-              )}
-            </div>
-          </div>
-        )
-
       case 'timesheet':
         return (
           <div className="max-w-7xl mx-auto">
