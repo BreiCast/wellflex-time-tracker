@@ -2,9 +2,30 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { Card } from '@/components/ui'
 
 export const dynamic = 'force-dynamic'
+
+function BrandHeader({ subtitle }: { subtitle: string }) {
+  return (
+    <div className="text-center mb-10">
+      <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+        <Image
+          src="/wellflex_logo.jpg"
+          alt="wetrack logo"
+          width={96}
+          height={96}
+          className="w-full h-full object-contain rounded-2xl"
+        />
+      </div>
+      <h1 className="text-4xl font-black text-slate-900 tracking-tighter font-wetrack">wetrack</h1>
+      <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">{subtitle}</p>
+    </div>
+  )
+}
 
 function ConfirmEmailContent() {
   const router = useRouter()
@@ -71,10 +92,13 @@ function ConfirmEmailContent() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Confirming your email...</p>
+      <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
+        <div className="max-w-md w-full">
+          <BrandHeader subtitle="Verifying" />
+          <Card className="p-10 text-center">
+            <div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+            <p className="text-slate-500 font-bold">Confirming your email…</p>
+          </Card>
         </div>
       </div>
     )
@@ -82,64 +106,44 @@ function ConfirmEmailContent() {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-          <div className="text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-              <svg
-                className="h-6 w-6 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+      <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
+        <div className="max-w-md w-full">
+          <BrandHeader subtitle="Error" />
+          <Card className="p-10 text-center">
+            <div className="w-20 h-20 bg-rose-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-rose-200">
+              <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="mt-6 text-3xl font-bold text-gray-900">Confirmation Failed</h2>
-            <p className="mt-2 text-sm text-gray-600">{error}</p>
-          </div>
-          <div className="mt-6 text-center">
-            <a
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Confirmation Failed</h2>
+            <p className="text-slate-400 font-bold text-sm mb-10">{error}</p>
+            <Link
               href="/login"
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+              className="block w-full py-4 px-6 bg-primary-600 text-white text-lg font-black rounded-control hover:bg-primary-700 shadow-lg shadow-primary-200 transition-all transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500"
             >
-              Back to login
-            </a>
-          </div>
+              BACK TO LOGIN
+            </Link>
+          </Card>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-        <div className="text-center">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-            <svg
-              className="h-6 w-6 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
+    <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
+      <div className="max-w-md w-full">
+        <BrandHeader subtitle="Welcome" />
+        <Card className="p-10 text-center">
+          <div className="w-20 h-20 bg-emerald-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200">
+            <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Email Confirmed!</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Your email has been successfully confirmed. Redirecting to dashboard...
+          <h2 className="text-2xl font-black text-slate-900 mb-2">Email Confirmed!</h2>
+          <p className="text-slate-400 font-bold text-sm">
+            Your email is verified. Redirecting you to your dashboard…
           </p>
-        </div>
+        </Card>
       </div>
     </div>
   )
@@ -147,14 +151,13 @@ function ConfirmEmailContent() {
 
 export default function ConfirmEmailPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-canvas">
+          <div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
         </div>
-      </div>
-    }>
+      }
+    >
       <ConfirmEmailContent />
     </Suspense>
   )
