@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
+import { getAppUrl } from '@/lib/utils/app-url'
+import { sendAuthConfirmationEmail } from '@/lib/utils/email'
 import { z } from 'zod'
 
 const signupSchema = z.object({
@@ -14,11 +16,13 @@ export async function POST(request: NextRequest) {
     const { email, password, full_name } = signupSchema.parse(body)
 
     const supabase = createServiceSupabaseClient()
-    
+
     // Check if user already exists before attempting signup
     const { data: existingUsers } = await supabase.auth.admin.listUsers()
-    const existingUser = existingUsers?.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
-    
+    const existingUser = existingUsers?.users.find(
+      (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+    )
+
     if (existingUser) {
       return NextResponse.json(
         { error: 'An account with this email address already exists. Please sign in instead.' },
@@ -26,45 +30,49 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Sign up the user
-    const { data, error } = await supabase.auth.signUp({
+    // Create the (unconfirmed) user and generate a confirmation token WITHOUT
+    // triggering Supabase's own email. We send the email ourselves via SMTP so
+    // the link stays on the app domain.
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: 'signup',
       email,
       password,
       options: {
-        data: {
-          full_name: full_name,
-        },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
+        data: { full_name },
       },
-    })
+    } as any)
 
-    if (error) {
-      // Handle specific Supabase errors
-      let errorMessage = error.message
-      
-      // Check for duplicate email errors (Supabase may return different error codes)
+    const hashedToken = (data as any)?.properties?.hashed_token
+
+    if (error || !hashedToken) {
+      let errorMessage = error?.message || 'Could not create account. Please try again.'
       if (
-        error.message?.toLowerCase().includes('already registered') ||
-        error.message?.toLowerCase().includes('user already exists') ||
-        error.message?.toLowerCase().includes('email address is already') ||
-        error.code === 'user_already_exists'
+        errorMessage.toLowerCase().includes('already registered') ||
+        errorMessage.toLowerCase().includes('already exists') ||
+        (error as any)?.code === 'user_already_exists'
       ) {
         errorMessage = 'An account with this email address already exists. Please sign in instead.'
       }
-      
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    // App-hosted confirmation link: clicking it runs verifyOtp on /auth/confirm,
+    // which signs the user in.
+    const confirmUrl = `${getAppUrl()}/auth/confirm?token_hash=${hashedToken}&type=email`
+    const sendResult = await sendAuthConfirmationEmail({ to: email, name: full_name, confirmUrl })
+
+    if (!sendResult.success) {
+      console.error('[AUTH] Signup confirmation email failed to send:', sendResult.error)
       return NextResponse.json(
-        { error: errorMessage },
-        { status: 400 }
+        {
+          error:
+            'Your account was created, but we could not send the confirmation email. Please use "Resend email".',
+        },
+        { status: 502 }
       )
     }
 
-    // Note: User record will be created after email confirmation
-    // via the auth callback handler
-
-    return NextResponse.json({ 
-      user: data.user,
-      needsConfirmation: !data.session 
-    })
+    return NextResponse.json({ needsConfirmation: true })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -78,4 +86,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

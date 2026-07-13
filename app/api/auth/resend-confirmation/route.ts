@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
+import { getAppUrl } from '@/lib/utils/app-url'
+import { sendAuthConfirmationEmail } from '@/lib/utils/email'
 import { z } from 'zod'
 
 const resendSchema = z.object({
@@ -12,51 +14,61 @@ export async function POST(request: NextRequest) {
     const { email } = resendSchema.parse(body)
 
     const supabase = createServiceSupabaseClient()
-    
-    // Resend the confirmation email
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email,
-      options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
-      },
-    })
 
-    if (error) {
-      // Handle specific errors
-      let errorMessage = error.message
-      
-      // If user is already confirmed, provide helpful message
-      if (
-        error.message?.toLowerCase().includes('already confirmed') ||
-        error.message?.toLowerCase().includes('email already confirmed')
-      ) {
-        return NextResponse.json(
-          { error: 'This email is already confirmed. You can sign in instead.' },
-          { status: 400 }
-        )
-      }
-      
-      // If user doesn't exist
-      if (
-        error.message?.toLowerCase().includes('user not found') ||
-        error.message?.toLowerCase().includes('no user found')
-      ) {
-        return NextResponse.json(
-          { error: 'No account found with this email address. Please sign up first.' },
-          { status: 404 }
-        )
-      }
-      
+    // Look up the user to give clear feedback for "already confirmed" / "no account".
+    const { data: existingUsers } = await supabase.auth.admin.listUsers()
+    const existingUser = existingUsers?.users.find(
+      (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+    )
+
+    if (!existingUser) {
       return NextResponse.json(
-        { error: errorMessage },
+        { error: 'No account found with this email address. Please sign up first.' },
+        { status: 404 }
+      )
+    }
+
+    if ((existingUser as any).email_confirmed_at) {
+      return NextResponse.json(
+        { error: 'This email is already confirmed. You can sign in instead.' },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ 
+    // Generate a magic link (confirms the email and signs the user in on click)
+    // and send it ourselves via SMTP so the link stays on the app domain.
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+    } as any)
+
+    const hashedToken = (data as any)?.properties?.hashed_token
+
+    if (error || !hashedToken) {
+      return NextResponse.json(
+        { error: error?.message || 'Could not resend confirmation email. Please try again.' },
+        { status: 400 }
+      )
+    }
+
+    const confirmUrl = `${getAppUrl()}/auth/confirm?token_hash=${hashedToken}&type=magiclink`
+    const sendResult = await sendAuthConfirmationEmail({
+      to: email,
+      name: (existingUser as any).user_metadata?.full_name || null,
+      confirmUrl,
+    })
+
+    if (!sendResult.success) {
+      console.error('[AUTH] Resend confirmation email failed to send:', sendResult.error)
+      return NextResponse.json(
+        { error: 'Could not send the confirmation email. Please try again shortly.' },
+        { status: 502 }
+      )
+    }
+
+    return NextResponse.json({
       success: true,
-      message: 'Confirmation email sent successfully'
+      message: 'Confirmation email sent successfully',
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -71,4 +83,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

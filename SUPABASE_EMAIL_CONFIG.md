@@ -1,82 +1,80 @@
-# Supabase Email Configuration for Production
+# Auth Emails (App-Owned via SMTP)
 
-## Important: Two Places to Configure Email URLs
+Signup confirmation and password-reset emails are **sent by the app itself** via
+SMTP (Zoho) — not by Supabase. This guarantees the link is on the app domain
+(`https://tracker.wellflex.co`) and that clicking it signs the user in.
 
-When emails are sent, Supabase uses **both**:
-1. The `emailRedirectTo` parameter in your code (which we just fixed)
-2. The **Site URL** and **Redirect URLs** in Supabase Dashboard
+## How it works
 
-## Step 1: Update Supabase Dashboard Settings
+1. The browser posts to an app API route:
+   - Sign up → `POST /api/auth/signup`
+   - Resend confirmation → `POST /api/auth/resend-confirmation`
+   - Forgot password → `POST /api/auth/forgot-password`
+2. The route uses the Supabase **admin** API (`auth.admin.generateLink`) to mint a
+   one-time `token_hash` **without** triggering Supabase's own email.
+3. The route builds an **app-hosted** link and sends it through our SMTP
+   (`lib/utils/email.ts` → nodemailer):
+   - Confirm: `https://tracker.wellflex.co/auth/confirm?token_hash=…&type=email`
+   - Resend:  `https://tracker.wellflex.co/auth/confirm?token_hash=…&type=magiclink`
+   - Reset:   `https://tracker.wellflex.co/reset-password?token_hash=…&type=recovery`
+4. Clicking the link opens the app page, which calls `supabase.auth.verifyOtp({ token_hash, type })`.
+   That establishes a session — i.e. the user is **logged in** on click (confirm)
+   or allowed to set a new password (reset).
 
-### 1. Go to Supabase Dashboard
-- Navigate to: https://supabase.com/dashboard/project/lgtzybhqelmbgovlhvqc
+Because we generate the links ourselves, **Supabase's "Site URL", "Redirect URLs",
+and email templates are not used for these flows** and do not need to be configured.
 
-### 2. Set Site URL
-1. Go to **Settings** → **API**
-2. Find **"Site URL"** section
-3. Set it to: `https://tracker.wellflex.co`
-4. Click **"Save"**
+## Required configuration
 
-### 3. Add Redirect URLs
-1. Still in **Settings** → **API**
-2. Scroll to **"Redirect URLs"** section
-3. Add these URLs (one per line):
-   ```
-   https://tracker.wellflex.co/auth/confirm
-   https://tracker.wellflex.co/auth/accept-invite
-   https://tracker.wellflex.co/reset-password
-   http://localhost:3000/auth/confirm
-   http://localhost:3000/auth/accept-invite
-   http://localhost:3000/reset-password
-   ```
-4. Click **"Save"**
+### 1. SMTP (used by the app's nodemailer transport)
 
-### 4. Update Email Templates (Optional but Recommended)
-1. Go to **Authentication** → **Email Templates**
-2. Click on **"Confirm signup"** template
-3. Make sure the template uses `{{ .ConfirmationURL }}` (this will use the correct URL)
-4. Example template:
-   ```html
-   <h2>Welcome to Time Tracker!</h2>
-   <p>Click the link below to confirm your email address:</p>
-   <p><a href="{{ .ConfirmationURL }}">Confirm Email Address</a></p>
-   <p>Or copy and paste this URL into your browser:</p>
-   <p>{{ .ConfirmationURL }}</p>
-   ```
+Set these environment variables in **Vercel** (see `ZOHO_SMTP_SETUP.md` for Zoho
+specifics). They are read in `lib/utils/email.ts`:
 
-## Step 2: Verify Environment Variable in Vercel
+```
+SMTP_HOST=smtp.zoho.com
+SMTP_PORT=587
+SMTP_USER=<your-zoho-mailbox>
+SMTP_PASSWORD=<zoho-app-password>
+SMTP_FROM_EMAIL=wetrack <noreply@wellflex.co>
+```
 
-Make sure `NEXT_PUBLIC_APP_URL` is set in Vercel:
-- Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-- Verify `NEXT_PUBLIC_APP_URL` = `https://tracker.wellflex.co`
-- **Redeploy** after setting/updating this variable
+If SMTP is not fully configured, the send functions log an error and return
+`{ success: false }`; signup/resend surface a "could not send email" message.
 
-## How It Works
+### 2. App URL
 
-1. **Code sends email**: Your API route sets `emailRedirectTo` using `NEXT_PUBLIC_APP_URL`
-2. **Supabase generates link**: Supabase uses the **Site URL** from dashboard as the base
-3. **Final URL**: Supabase combines Site URL + redirect path to create the confirmation link
+```
+NEXT_PUBLIC_APP_URL=https://tracker.wellflex.co
+```
 
-**Important**: If Supabase Dashboard Site URL is still set to `http://localhost:3000`, it will override your code's `emailRedirectTo` parameter!
+Read via `lib/utils/app-url.ts` (`getAppUrl()`). If missing in production it logs a
+warning and falls back to `http://localhost:3000`, which would break links —
+so make sure it is set in Vercel and **redeploy** after changing it.
+
+### 3. Supabase
+
+- The live project ref is `xhrdwouybvuzvbkhbjhk`
+  (dashboard: https://supabase.com/dashboard/project/xhrdwouybvuzvbkhbjhk).
+- `SUPABASE_SERVICE_ROLE_KEY` must be set (server-side only) — `generateLink`
+  requires it.
+- No email-template or URL changes are required for signup/reset. (Custom SMTP in
+  Supabase Auth is only needed for flows Supabase still sends itself, e.g. team
+  invites — see note below.)
 
 ## Testing
 
-After updating both:
-1. Sign up a new user
-2. Check the email
-3. Verify the confirmation link points to `https://tracker.wellflex.co/auth/confirm?token=...`
-4. Not `http://localhost:3000/auth/confirm?token=...`
+1. Set the env vars above in Vercel and redeploy.
+2. Sign up with a real address → confirm the email arrives **from your Zoho sender**
+   and the link is `https://tracker.wellflex.co/auth/confirm?...` (not `*.supabase.co`).
+3. Click it → you should land on the app already signed in and be redirected to
+   `/dashboard`.
+4. Repeat for **Forgot password** → link should be
+   `https://tracker.wellflex.co/reset-password?...`, and after setting a new password
+   you're sent to `/login`.
 
-## Troubleshooting
+## Note: invites are still Supabase-sent
 
-**Links still showing localhost?**
-- ✅ Check Supabase Dashboard → Settings → API → Site URL
-- ✅ Check Supabase Dashboard → Settings → API → Redirect URLs
-- ✅ Check Vercel Environment Variables → `NEXT_PUBLIC_APP_URL`
-- ✅ Redeploy after making changes
-
-**Links not working?**
-- Make sure the redirect URL is in the "Redirect URLs" list in Supabase
-- Check that the URL matches exactly (including https://)
-- Verify the route `/auth/confirm` exists and works
-
+Team invites (`/api/invites`) currently use Supabase's invite email. If you want
+those on the app domain too, migrate them to the same `generateLink` + SMTP pattern
+(`type: 'invite'` → `/auth/accept-invite?token_hash=…&type=invite`).

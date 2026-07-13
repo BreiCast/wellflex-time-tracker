@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
@@ -20,16 +19,18 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      if (!process.env.NEXT_PUBLIC_APP_URL && process.env.NODE_ENV === 'production') {
-        console.warn('[AUTH] NEXT_PUBLIC_APP_URL missing in production. Falling back to localhost for reset redirect.')
-      }
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appUrl}/reset-password`,
+      // Password reset goes through our server route, which generates the
+      // recovery link and sends it via our own SMTP (link on the app domain).
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       })
+      const data = await response.json()
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send password reset email')
+      }
 
       setSuccess(true)
     } catch (err: any) {
