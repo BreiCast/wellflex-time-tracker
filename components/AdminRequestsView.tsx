@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui'
 import RequestDetailModal from './RequestDetailModal'
 
 interface AdminRequestsViewProps {
@@ -12,6 +13,7 @@ interface AdminRequestsViewProps {
 
 export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequestsViewProps) {
   const toast = useToast()
+  const confirm = useConfirm()
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
@@ -85,6 +87,14 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
   }, [loadRequests])
 
   const handleReview = async (requestId: string, status: 'APPROVED' | 'REJECTED', notes?: string) => {
+    if (status === 'REJECTED' && !(await confirm({
+      title: 'Reject request',
+      message: 'Reject this request? The requester will be notified.',
+      confirmLabel: 'Reject',
+      variant: 'danger',
+    }))) {
+      return
+    }
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()

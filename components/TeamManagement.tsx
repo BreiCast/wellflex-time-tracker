@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui'
 
 interface TeamManagementProps {
   teamId: string
@@ -11,6 +12,7 @@ interface TeamManagementProps {
 
 export default function TeamManagement({ teamId, userRole }: TeamManagementProps) {
   const toast = useToast()
+  const confirm = useConfirm()
   const [members, setMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -108,7 +110,12 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
   }
 
   const handleRemoveMember = async (userId: string) => {
-    if (!confirm('Are you sure you want to remove this member?')) {
+    if (!(await confirm({
+      title: 'Remove member',
+      message: 'Are you sure you want to remove this member from the team?',
+      confirmLabel: 'Remove',
+      variant: 'danger',
+    }))) {
       return
     }
 
@@ -137,6 +144,14 @@ export default function TeamManagement({ teamId, userRole }: TeamManagementProps
   }
 
   const handleUpdateRole = async (userId: string, newRole: 'MEMBER' | 'MANAGER' | 'ADMIN') => {
+    if (newRole === 'ADMIN' && !(await confirm({
+      title: 'Grant admin access',
+      message: 'This gives the member full admin control of the team, including managing members and settings. Continue?',
+      confirmLabel: 'Grant admin',
+      variant: 'danger',
+    }))) {
+      return
+    }
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { Modal } from '@/components/ui'
 
 interface RequestDetailModalProps {
   requestId: string | null
@@ -153,11 +154,8 @@ export default function RequestDetailModal({
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+    <Modal open={isOpen} onClose={onClose} label="Request details" className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <h2 className="text-2xl font-black text-slate-900">Request Details</h2>
@@ -446,7 +444,6 @@ export default function RequestDetailModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

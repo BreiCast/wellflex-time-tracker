@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Modal } from '@/components/ui'
 
 interface LateClockInModalProps {
   teamId: string
@@ -21,8 +22,6 @@ export default function LateClockInModal({
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,8 +80,7 @@ export default function LateClockInModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <Modal open={isOpen} onClose={handleCancel} label="Late clock-in" className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100">
           <h3 className="text-xl font-black text-slate-900">Late Clock-In</h3>
           <p className="text-sm text-slate-500 mt-1">
@@ -139,7 +137,6 @@ export default function LateClockInModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }

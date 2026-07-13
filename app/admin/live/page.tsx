@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DashboardNav from '@/components/DashboardNav'
+import { Modal } from '@/components/ui'
 
 /** API returns these; we map to display status for filters/pills */
 type ApiStatus = 'Working' | 'On break' | 'Not working' | 'Unknown'
@@ -738,8 +739,7 @@ function ConfirmClockOutModal({
   isSubmitting: boolean
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full overflow-hidden">
+    <Modal open onClose={onCancel} label="Stop time" className="bg-white rounded-3xl shadow-xl max-w-md w-full overflow-hidden">
         <div className="p-6 border-b border-slate-100">
           <h3 className="text-xl font-black text-slate-900">Stop time?</h3>
           <p className="text-sm text-slate-500 mt-1">
@@ -764,8 +764,7 @@ function ConfirmClockOutModal({
             {isSubmitting ? 'Stopping…' : 'Stop time'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Modal } from '@/components/ui'
 
 interface AdjustmentEditModalProps {
   adjustment: {
@@ -42,8 +43,6 @@ export default function AdjustmentEditModal({
       setError(null)
     }
   }, [isOpen, adjustment])
-
-  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,8 +92,7 @@ export default function AdjustmentEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <Modal open={isOpen} onClose={onClose} label="Edit adjustment" className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100">
           <h3 className="text-xl font-black text-slate-900">Edit Adjustment</h3>
           <p className="text-sm text-slate-500 mt-1">Update adjustment details</p>
@@ -184,7 +182,6 @@ export default function AdjustmentEditModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }

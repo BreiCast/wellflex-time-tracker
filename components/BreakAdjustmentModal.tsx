@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { calculateBreakDurationDifference, getBreakAdjustmentType } from '@/lib/utils/request-helpers'
+import { Modal } from '@/components/ui'
 
 interface BreakAdjustmentModalProps {
   breakSegment: {
@@ -48,7 +49,7 @@ export default function BreakAdjustmentModal({
     }
   }, [isOpen, breakSegment])
 
-  if (!isOpen || !breakSegment) return null
+  if (!breakSegment) return null
 
   const currentDuration = breakSegment.duration_minutes
   const adjustedDuration = formData.adjusted_duration_hours * 60 + formData.adjusted_duration_minutes
@@ -116,8 +117,7 @@ export default function BreakAdjustmentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <Modal open={isOpen} onClose={onClose} label="Adjust break duration" className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100">
           <h3 className="text-xl font-black text-slate-900">Adjust Break Duration</h3>
           <p className="text-sm text-slate-500 mt-1">Request to adjust break duration</p>
@@ -244,7 +244,6 @@ export default function BreakAdjustmentModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
