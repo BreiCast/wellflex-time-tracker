@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 interface AdminMembersViewProps {
   teamIds: string[]
 }
 
 export default function AdminMembersView({ teamIds }: AdminMembersViewProps) {
+  const toast = useToast()
   const [members, setMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -150,10 +152,10 @@ export default function AdminMembersView({ teamIds }: AdminMembersViewProps) {
         loadMembers()
       } else {
         const result = await response.json()
-        alert(result.error || 'Failed to update role')
+        toast.error(result.error || 'Failed to update role')
       }
     } catch (error) {
-      alert('Failed to update role')
+      toast.error('Failed to update role')
     }
   }
 
@@ -181,10 +183,10 @@ export default function AdminMembersView({ teamIds }: AdminMembersViewProps) {
         loadMembers()
       } else {
         const result = await response.json()
-        alert(result.error || 'Failed to remove member')
+        toast.error(result.error || 'Failed to remove member')
       }
     } catch (error) {
-      alert('Failed to remove member')
+      toast.error('Failed to remove member')
     }
   }
 

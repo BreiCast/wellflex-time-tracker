@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 interface Schedule {
   id: string
@@ -27,6 +28,7 @@ interface ScheduleManagerProps {
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', onScheduleUpdated }: ScheduleManagerProps) {
+  const toast = useToast()
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [editingDay, setEditingDay] = useState<number | null>(null)
@@ -161,7 +163,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
       await loadSchedules()
       onScheduleUpdated?.()
     } catch (error: any) {
-      alert(error.message || 'Failed to save schedule')
+      toast.error(error.message || 'Failed to save schedule')
     } finally {
       setSaving(false)
     }
@@ -193,7 +195,7 @@ export default function ScheduleManager({ teamId, userId, userRole = 'MEMBER', o
       await loadSchedules()
       onScheduleUpdated?.()
     } catch (error: any) {
-      alert(error.message || 'Failed to delete schedule')
+      toast.error(error.message || 'Failed to delete schedule')
     }
   }
 

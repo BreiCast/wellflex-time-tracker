@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 import DashboardNav from '@/components/DashboardNav'
 
 export default function AdminSettingsPage() {
   const router = useRouter()
+  const toast = useToast()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,7 +72,7 @@ export default function AdminSettingsPage() {
 
       const data = await response.json()
       setSettings(data.settings)
-      alert('Settings saved successfully!')
+      toast.success('Settings saved successfully!')
     } catch (err: any) {
       setError(err.message)
     } finally {

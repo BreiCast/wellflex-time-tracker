@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 interface RequestDetailModalProps {
   requestId: string | null
@@ -51,6 +52,7 @@ export default function RequestDetailModal({
   onClose,
   onRequestUpdated,
 }: RequestDetailModalProps) {
+  const toast = useToast()
   const [request, setRequest] = useState<RequestDetail | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(false)
@@ -80,15 +82,15 @@ export default function RequestDetailModal({
         setComments(result.comments || [])
       } else {
         console.error('Failed to load request:', result.error)
-        alert(result.error || 'Failed to load request details')
+        toast.error(result.error || 'Failed to load request details')
       }
     } catch (error) {
       console.error('Error loading request:', error)
-      alert('Failed to load request details')
+      toast.error('Failed to load request details')
     } finally {
       setLoading(false)
     }
-  }, [requestId])
+  }, [requestId, toast])
 
   useEffect(() => {
     if (isOpen && requestId) {
@@ -141,11 +143,11 @@ export default function RequestDetailModal({
         const errorMsg = result.details 
           ? `${result.error}: ${result.details}${result.hint ? ` (${result.hint})` : ''}`
           : result.error || 'Failed to add comment'
-        alert(errorMsg)
+        toast.error(errorMsg)
       }
     } catch (error) {
       console.error('Error adding comment:', error)
-      alert('Failed to add comment. Please check the console for details.')
+      toast.error('Failed to add comment. Please check the console for details.')
     } finally {
       setSubmittingComment(false)
     }
