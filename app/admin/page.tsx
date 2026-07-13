@@ -125,6 +125,7 @@ export default function AdminPage() {
           }
         }}
         userEmail={user?.email}
+        userRole="ADMIN"
         onLogout={handleLogout}
       />
 
