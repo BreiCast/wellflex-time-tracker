@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getColombiaDateParts, computeLateCheckInColombia } from '@/lib/utils/schedule-helpers'
+import { wouldDropBelowMinimum } from '@/lib/utils/coverage'
 import DashboardNav from '@/components/DashboardNav'
 import TeamSelector from '@/components/TeamSelector'
 import TeamSwitcher from '@/components/TeamSwitcher'
@@ -51,6 +52,21 @@ export default function TrackingPage() {
   const [recentSessions, setRecentSessions] = useState<any[]>([])
   const [isLateModalOpen, setIsLateModalOpen] = useState(false)
   const [scheduledStartTime, setScheduledStartTime] = useState<string | null>(null)
+  const [coverageModal, setCoverageModal] = useState<{
+    breakType: 'BREAK' | 'LUNCH'
+    working_count: number
+    min_working_count: number
+    teamName: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!coverageModal) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCoverageModal(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [coverageModal])
 
   // Update current time every second for live timer
   useEffect(() => {
@@ -452,13 +468,46 @@ export default function TrackingPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
 
+      // Warn before a break would drop the team below its minimum coverage.
+      try {
+        const coverageRes = await fetch(
+          `/api/coverage?team_id=${activeSession.team_id}&offset_minutes=${-new Date().getTimezoneOffset()}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        )
+        if (coverageRes.ok) {
+          const coverage = await coverageRes.json()
+          if (wouldDropBelowMinimum(coverage)) {
+            setCoverageModal({
+              breakType,
+              working_count: coverage.working_count,
+              min_working_count: coverage.min_working_count,
+              teamName: coverage.teamName,
+            })
+            setActionLoading(false)
+            return
+          }
+        }
+      } catch {
+        // If the coverage check fails, don't block the break.
+      }
+
+      await doBreakStart(breakType, session.access_token)
+    } catch (err: any) {
+      setError(err.message || 'Failed to start break')
+      setActionLoading(false)
+    }
+  }
+
+  const doBreakStart = async (breakType: 'BREAK' | 'LUNCH', accessToken: string) => {
+    if (!activeSession) return
+    try {
       const response = await fetch('/api/breaks/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           time_session_id: activeSession.id,
           break_type: breakType,
         }),
@@ -473,6 +522,23 @@ export default function TrackingPage() {
       setError(err.message || 'Failed to start break')
     } finally {
       setActionLoading(false)
+      setCoverageModal(null)
+    }
+  }
+
+  const handleConfirmCoverageBreak = async () => {
+    if (!coverageModal) return
+    setActionLoading(true)
+    setError('')
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
+      await doBreakStart(coverageModal.breakType, session.access_token)
+    } catch (err: any) {
+      setError(err.message || 'Failed to start break')
+      setActionLoading(false)
+      setCoverageModal(null)
     }
   }
 
@@ -943,6 +1009,52 @@ export default function TrackingPage() {
           await loadTodayStats()
         }}
       />
+
+      {coverageModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => !actionLoading && setCoverageModal(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="coverage-modal-title"
+            className="bg-white rounded-[2rem] shadow-xl max-w-md w-full p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-amber-100 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 id="coverage-modal-title" className="text-xl font-black text-slate-900">Low Team Coverage</h3>
+            </div>
+            <p className="text-slate-600 font-bold text-sm mb-8">
+              Going on {coverageModal.breakType === 'LUNCH' ? 'lunch' : 'break'} will leave{' '}
+              <strong>{Math.max(0, coverageModal.working_count - 1)}</strong> people working
+              {' '}(minimum is <strong>{coverageModal.min_working_count}</strong> for {coverageModal.teamName}).
+              Do you want to proceed?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCoverageModal(null)}
+                disabled={actionLoading}
+                className="flex-1 py-3 px-4 border border-slate-200 rounded-2xl text-sm font-black text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleConfirmCoverageBreak}
+                disabled={actionLoading}
+                className="flex-1 py-3 px-4 rounded-2xl text-sm font-black text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'STARTING...' : 'PROCEED'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
