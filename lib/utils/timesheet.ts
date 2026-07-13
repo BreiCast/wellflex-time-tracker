@@ -1,4 +1,5 @@
 import { Database } from '@/types/database'
+import { toColombiaDateKey, eachLocalDateKey } from '@/lib/utils/date'
 
 type TimeSession = Database['public']['Tables']['time_sessions']['Row']
 type BreakSegment = Database['public']['Tables']['break_segments']['Row']
@@ -28,20 +29,25 @@ export interface TimesheetEntry {
   user_name?: string
 }
 
+/**
+ * Build a per-day timesheet for a range of Colombia (America/Bogota) business
+ * dates. `startDate`/`endDate` are inclusive local calendar dates (YYYY-MM-DD).
+ * Time entries (TIMESTAMPTZ instants) are bucketed by the Colombia day they fall
+ * on; adjustments carry a DATE `effective_date` that is already a local calendar
+ * date and is bucketed as-is.
+ */
 export function calculateTimesheet(
   sessions: TimeSession[],
   breaks: BreakSegment[],
   notes: Array<{ id: string; content: string; created_at: string; created_by: string; time_session_id: string }>,
   adjustments: Adjustment[],
-  startDate: Date,
-  endDate: Date
+  startDate: string,
+  endDate: string
 ): TimesheetEntry[] {
   const entries: Map<string, TimesheetEntry> = new Map()
 
-  // Initialize entries for date range
-  const currentDate = new Date(startDate)
-  while (currentDate <= endDate) {
-    const dateKey = currentDate.toISOString().split('T')[0]
+  // Initialize an entry for each Colombia calendar date in the range
+  for (const dateKey of eachLocalDateKey(startDate, endDate)) {
     entries.set(dateKey, {
       date: dateKey,
       clockIn: null,
@@ -55,14 +61,13 @@ export function calculateTimesheet(
       breaks: [],
       notes: [],
     })
-    currentDate.setDate(currentDate.getDate() + 1)
   }
 
-  // Process sessions
+  // Process sessions — bucket by the Colombia business day the session started
   for (const session of sessions) {
     const sessionDate = new Date(session.clock_in_at)
-    const dateKey = sessionDate.toISOString().split('T')[0]
-    
+    const dateKey = toColombiaDateKey(session.clock_in_at)
+
     if (entries.has(dateKey)) {
       const entry = entries.get(dateKey)!
       entry.sessions.push({
@@ -99,7 +104,7 @@ export function calculateTimesheet(
     
     const breakStart = new Date(breakSegment.break_start_at)
     const breakEnd = new Date(breakSegment.break_end_at)
-    const dateKey = breakStart.toISOString().split('T')[0]
+    const dateKey = toColombiaDateKey(breakSegment.break_start_at)
     
     if (entries.has(dateKey)) {
       const entry = entries.get(dateKey)!
@@ -116,9 +121,8 @@ export function calculateTimesheet(
     // Find the session for this note
     const session = sessions.find(s => s.id === note.time_session_id)
     if (session) {
-      const sessionDate = new Date(session.clock_in_at)
-      const dateKey = sessionDate.toISOString().split('T')[0]
-      
+      const dateKey = toColombiaDateKey(session.clock_in_at)
+
       if (entries.has(dateKey)) {
         const entry = entries.get(dateKey)!
         entry.notes.push(note)
@@ -126,15 +130,21 @@ export function calculateTimesheet(
     }
   }
 
-  // Process adjustments
+  // Base worked minutes (worked - breaks) must be known before applying
+  // adjustments so OVERRIDE can replace the day total correctly.
+  for (const entry of Array.from(entries.values())) {
+    entry.workMinutes = entry.totalMinutes - entry.breakMinutes
+  }
+
+  // Process adjustments — effective_date is a DATE (already a Colombia calendar
+  // date), so bucket by its raw value without an offset shift.
   for (const adjustment of adjustments) {
-    const adjustmentDate = new Date(adjustment.effective_date)
-    const dateKey = adjustmentDate.toISOString().split('T')[0]
-    
+    const dateKey = String(adjustment.effective_date).split('T')[0]
+
     if (entries.has(dateKey)) {
       const entry = entries.get(dateKey)!
       entry.adjustments.push(adjustment)
-      
+
       switch (adjustment.adjustment_type) {
         case 'ADD_TIME':
           entry.adjustedMinutes += adjustment.minutes
@@ -143,15 +153,16 @@ export function calculateTimesheet(
           entry.adjustedMinutes -= adjustment.minutes
           break
         case 'OVERRIDE':
+          // Replace the day's worked total with exactly `minutes`.
           entry.adjustedMinutes = adjustment.minutes - entry.workMinutes
           break
       }
     }
   }
 
-  // Calculate work minutes (total - breaks + adjustments)
+  // Fold adjustments into the final work minutes
   for (const entry of Array.from(entries.values())) {
-    entry.workMinutes = entry.totalMinutes - entry.breakMinutes + entry.adjustedMinutes
+    entry.workMinutes += entry.adjustedMinutes
   }
 
   return Array.from(entries.values()).sort((a, b) => 

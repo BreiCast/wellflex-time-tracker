@@ -3,6 +3,7 @@ import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { calculateTimesheet } from '@/lib/utils/timesheet'
+import { getBusinessDayBounds } from '@/lib/utils/date'
 import { z } from 'zod'
 
 const getTimesheetTotalsSchema = z.object({
@@ -72,9 +73,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Query window uses Colombia business-day bounds so evening sessions that
+    // land on the next UTC day are still fetched for the correct local date.
+    const rangeStart = getBusinessDayBounds(start_date).start
+    const rangeEnd = getBusinessDayBounds(end_date).end
+
     const startDate = new Date(`${start_date}T00:00:00.000Z`)
     const endDate = new Date(`${end_date}T00:00:00.000Z`)
-    const endDateInclusive = new Date(`${end_date}T23:59:59.999Z`)
 
     const maxDays = 90
     const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -89,8 +94,8 @@ export async function GET(request: NextRequest) {
       .from('time_sessions')
       .select('id, user_id, team_id, clock_in_at, clock_out_at, created_at, created_by')
       .eq('user_id', targetUserId)
-      .gte('clock_in_at', startDate.toISOString())
-      .lte('clock_in_at', endDateInclusive.toISOString())
+      .gte('clock_in_at', rangeStart)
+      .lte('clock_in_at', rangeEnd)
       .order('clock_in_at', { ascending: false })
 
     if (allowedTeamIds) {
@@ -159,8 +164,8 @@ export async function GET(request: NextRequest) {
       breaks,
       notes,
       adjustments || [],
-      startDate,
-      endDateInclusive
+      start_date,
+      end_date
     )
 
     const totalWorkMinutes = entries.reduce((sum, e) => sum + e.workMinutes, 0)

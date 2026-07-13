@@ -4,6 +4,7 @@ import { getUserFromRequest } from '@/lib/auth/get-user'
 import { isSuperAdmin } from '@/lib/auth/superadmin'
 import { getTimesheetSchema } from '@/lib/validations/schemas'
 import { calculateTimesheet } from '@/lib/utils/timesheet'
+import { getBusinessDayBounds } from '@/lib/utils/date'
 import { z } from 'zod'
 
 export async function GET(request: NextRequest) {
@@ -61,15 +62,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const startDate = new Date(`${start_date}T00:00:00.000Z`)
-    const endDate = new Date(`${end_date}T23:59:59.999Z`)
+    // Query window uses Colombia business-day bounds so sessions worked late in
+    // the evening (which land on the next UTC day) are still fetched for the
+    // correct local date. calculateTimesheet then buckets by the Colombia day.
+    const rangeStart = getBusinessDayBounds(start_date).start
+    const rangeEnd = getBusinessDayBounds(end_date).end
 
     // Enforce maximum date range (90 days) to prevent excessive queries
     // Keep this based on calendar dates rather than the inclusive end timestamp.
     const maxDays = 90
     const millisecondsPerDay = 1000 * 60 * 60 * 24
+    const startCalendarDate = new Date(`${start_date}T00:00:00.000Z`)
     const endCalendarDate = new Date(`${end_date}T00:00:00.000Z`)
-    const daysDiff = Math.floor((endCalendarDate.getTime() - startDate.getTime()) / millisecondsPerDay) + 1
+    const daysDiff = Math.floor((endCalendarDate.getTime() - startCalendarDate.getTime()) / millisecondsPerDay) + 1
     if (daysDiff > maxDays) {
       return NextResponse.json(
         { error: `Date range cannot exceed ${maxDays} days. Please select a smaller range.` },
@@ -97,8 +102,8 @@ export async function GET(request: NextRequest) {
       .from('time_sessions')
       .select('id, user_id, team_id, clock_in_at, clock_out_at, created_at, created_by') // Essential columns for calculateTimesheet
       .in('user_id', targetUserIds)
-      .gte('clock_in_at', startDate.toISOString())
-      .lte('clock_in_at', endDate.toISOString())
+      .gte('clock_in_at', rangeStart)
+      .lte('clock_in_at', rangeEnd)
       .order('clock_in_at', { ascending: false }) // Use indexed ordering
 
     if (team_id) {
@@ -216,8 +221,8 @@ export async function GET(request: NextRequest) {
           userBreaks,
           userNotes,
           userAdjustments,
-          startDate,
-          endDate
+          start_date,
+          end_date
         )
         
         // Add user info to each entry
@@ -253,8 +258,8 @@ export async function GET(request: NextRequest) {
         breaks || [],
         notes || [],
         adjustments || [],
-        startDate,
-        endDate
+        start_date,
+        end_date
       )
       
       return NextResponse.json({ timesheet, viewAllMembers: false })
