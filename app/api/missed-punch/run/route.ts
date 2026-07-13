@@ -201,3 +201,9 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+// Vercel Cron invokes scheduled endpoints via GET. Reuse the POST logic so the
+// job runs identically whether triggered by cron (GET) or manually (POST).
+export async function GET(request: NextRequest) {
+  return POST(request)
+}

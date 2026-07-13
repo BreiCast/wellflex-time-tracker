@@ -92,9 +92,7 @@ describe('formatMinutes', () => {
 
 describe('weekly totals (via calculateTimesheet)', () => {
   it('week with no entries has zero work and zero days worked', () => {
-    const start = new Date(2026, 0, 19)
-    const end = new Date(2026, 0, 25)
-    const entries = calculateTimesheet([], [], [], [], start, end)
+    const entries = calculateTimesheet([], [], [], [], '2026-01-19', '2026-01-25')
     const totalWork = entries.reduce((s, e) => s + e.workMinutes, 0)
     const daysWorked = entries.filter(e => e.workMinutes > 0).length
     expect(entries.length).toBe(7)
@@ -103,9 +101,7 @@ describe('weekly totals (via calculateTimesheet)', () => {
   })
 
   it('week crossing month boundary includes all 7 days', () => {
-    const start = new Date(2026, 0, 27)
-    const end = new Date(2026, 1, 2)
-    const entries = calculateTimesheet([], [], [], [], start, end)
+    const entries = calculateTimesheet([], [], [], [], '2026-01-27', '2026-02-02')
     expect(entries.length).toBe(7)
     const dates = entries.map(e => e.date)
     expect(dates).toContain('2026-01-27')
@@ -113,8 +109,6 @@ describe('weekly totals (via calculateTimesheet)', () => {
   })
 
   it('includes a midday session on the inclusive end date for a one-day range', () => {
-    const start = new Date('2026-01-21T00:00:00.000Z')
-    const end = new Date('2026-01-21T23:59:59.999Z')
     const middaySession: Parameters<typeof calculateTimesheet>[0][number] = {
       id: 'session-midday-end-date',
       user_id: 'user-1',
@@ -125,7 +119,7 @@ describe('weekly totals (via calculateTimesheet)', () => {
       created_by: 'user-1',
     }
 
-    const entries = calculateTimesheet([middaySession], [], [], [], start, end)
+    const entries = calculateTimesheet([middaySession], [], [], [], '2026-01-21', '2026-01-21')
 
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({

@@ -12,6 +12,8 @@ type MockState = {
   failBreakInsert: boolean
   failAdjustmentInsert: boolean
   requestUpdates: any[]
+  breakInserts: any[]
+  adjustmentInserts: any[]
 }
 
 let state: MockState
@@ -24,7 +26,8 @@ class MockQueryBuilder {
   constructor(private table: string) {}
 
   select() {
-    this.action = 'select'
+    // No-op: select() is chained after update()/insert() to return the affected
+    // row, so it must not clobber a pending write action. Reads default to 'select'.
     return this
   }
 
@@ -83,6 +86,7 @@ class MockQueryBuilder {
     }
 
     if (this.table === 'break_segments' && this.action === 'insert') {
+      state.breakInserts.push(this.payload)
       return {
         data: null,
         error: state.failBreakInsert ? { message: 'break insert failed' } : null,
@@ -90,6 +94,7 @@ class MockQueryBuilder {
     }
 
     if (this.table === 'adjustments' && this.action === 'insert') {
+      state.adjustmentInserts.push(this.payload)
       return {
         data: null,
         error: state.failAdjustmentInsert ? { message: 'adjustment insert failed' } : null,
@@ -153,6 +158,8 @@ beforeEach(() => {
     failBreakInsert: false,
     failAdjustmentInsert: false,
     requestUpdates: [],
+    breakInserts: [],
+    adjustmentInserts: [],
   }
   supabase.from.mockClear()
 })
@@ -207,5 +214,54 @@ describe('PATCH /api/requests approval correction failures', () => {
     expect(body.error).toContain('adjustment could not be inserted')
     expect(state.requests[requestId].status).toBe('PENDING')
     expect(state.requestUpdates).toHaveLength(0)
+  })
+})
+
+describe('PATCH /api/requests applies corrections exactly once', () => {
+  it('inserts exactly one break segment when approving a forgot-break request', async () => {
+    state.requests[requestId] = {
+      id: requestId,
+      user_id: requesterId,
+      team_id: teamId,
+      status: 'PENDING',
+      request_type: 'Forgot to Log Break',
+      requested_data: {
+        date: '2026-05-12',
+        time_from: '12:00',
+        time_to: '12:15',
+        break_type: 'BREAK',
+      },
+      time_session_id: null,
+    }
+
+    const response = await PATCH(patchRequest())
+
+    expect(response.status).toBe(200)
+    expect(state.breakInserts).toHaveLength(1)
+    expect(state.requests[requestId].status).toBe('APPROVED')
+    expect(state.requestUpdates).toHaveLength(1)
+  })
+
+  it('inserts exactly one adjustment when approving a leave request', async () => {
+    state.requests[requestId] = {
+      id: requestId,
+      user_id: requesterId,
+      team_id: teamId,
+      status: 'PENDING',
+      request_type: 'Leave Early',
+      requested_data: {
+        date: '2026-05-12',
+        time_from: '15:00',
+        time_to: '17:00',
+      },
+      time_session_id: sessionId,
+    }
+
+    const response = await PATCH(patchRequest())
+
+    expect(response.status).toBe(200)
+    expect(state.adjustmentInserts).toHaveLength(1)
+    expect(state.requests[requestId].status).toBe('APPROVED')
+    expect(state.requestUpdates).toHaveLength(1)
   })
 })

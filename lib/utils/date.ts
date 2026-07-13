@@ -92,6 +92,43 @@ export function getBusinessDayBounds(
   return getLocalDayBoundsFromParts(parts, offsetMinutes)
 }
 
+/**
+ * Return the local calendar date (YYYY-MM-DD) for a UTC instant, adjusted for a
+ * UTC offset. Defaults to Colombia (America/Bogota, UTC-5) so time entries are
+ * bucketed by the business day the user actually worked rather than the server's
+ * UTC date. Mirrors the offset-shift pattern used by getTodayBounds.
+ */
+export function toColombiaDateKey(
+  iso: string,
+  offsetMinutes: number = COLOMBIA_UTC_OFFSET_MINUTES
+): string {
+  const shifted = new Date(new Date(iso).getTime() + offsetMinutes * 60 * 1000)
+  return shifted.toISOString().split('T')[0]
+}
+
+/**
+ * Iterate the inclusive range of local calendar dates (YYYY-MM-DD) between two
+ * date strings, returning them in order. Used to initialize timesheet buckets so
+ * the keys match toColombiaDateKey rather than drifting via UTC Date arithmetic.
+ */
+export function eachLocalDateKey(startDate: string, endDate: string): string[] {
+  const start = parseLocalDate(startDate)
+  const end = parseLocalDate(endDate)
+  if (!start || !end) return []
+
+  const keys: string[] = []
+  // Anchor at noon UTC to stay clear of DST/offset edges while stepping days.
+  let cursor = Date.UTC(start.year, start.monthIndex, start.day, 12, 0, 0)
+  const last = Date.UTC(end.year, end.monthIndex, end.day, 12, 0, 0)
+
+  while (cursor <= last) {
+    keys.push(new Date(cursor).toISOString().split('T')[0])
+    cursor += MINUTES_PER_DAY * 60 * 1000
+  }
+
+  return keys
+}
+
 export function buildBusinessBreakInterval({
   date,
   timeFrom,

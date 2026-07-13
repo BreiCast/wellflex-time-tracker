@@ -21,6 +21,22 @@ function verifyCronSecret(request: NextRequest): boolean {
   return cronSecretHeader === expectedSecret
 }
 
+// Insert a notification_events row, surfacing (rather than swallowing) failures
+// such as enum/constraint violations so they are visible in logs.
+async function recordNotificationEvent(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  row: Record<string, any>
+): Promise<void> {
+  const { error } = await (supabase.from('notification_events' as any) as any).insert(row as any)
+  if (error) {
+    console.error('[NOTIFICATIONS] Failed to record notification_events row:', {
+      notificationType: row.notification_type,
+      userId: row.user_id,
+      error: error.message,
+    })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Verify cron secret
@@ -218,9 +234,7 @@ export async function POST(request: NextRequest) {
                 dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking`
               })
 
-              await supabase
-                .from('notification_events' as any)
-                .insert({
+              await recordNotificationEvent(supabase, {
                   user_id: user.id,
                   notification_type: 'CLOCK_IN_REMINDER',
                   status: sentResult.success ? 'SENT' : 'FAILED',
@@ -282,9 +296,7 @@ export async function POST(request: NextRequest) {
                 dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking`
               })
 
-              await supabase
-                .from('notification_events' as any)
-                .insert({
+              await recordNotificationEvent(supabase, {
                   user_id: user.id,
                   notification_type: 'CLOCK_OUT_REMINDER',
                   status: sentResult.success ? 'SENT' : 'FAILED',
@@ -342,9 +354,7 @@ export async function POST(request: NextRequest) {
                 dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking`
               })
 
-              await supabase
-                .from('notification_events' as any)
-                .insert({
+              await recordNotificationEvent(supabase, {
                   user_id: recipient.id,
                   notification_type: notificationType,
                   status: sentResult.success ? 'SENT' : 'FAILED',
@@ -402,9 +412,7 @@ export async function POST(request: NextRequest) {
                 dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking`
               })
 
-              await supabase
-                .from('notification_events' as any)
-                .insert({
+              await recordNotificationEvent(supabase, {
                   user_id: recipient.id,
                   notification_type: 'MISSED_PUNCH_REMINDER',
                   status: sentResult.success ? 'SENT' : 'FAILED',
@@ -449,4 +457,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+// Vercel Cron invokes scheduled endpoints via GET. Reuse the POST logic so the
+// job runs identically whether triggered by cron (GET) or manually (POST).
+export async function GET(request: NextRequest) {
+  return POST(request)
 }
