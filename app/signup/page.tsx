@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -28,31 +27,23 @@ export default function SignupPage() {
     }
 
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
+      // Signup goes through our server route, which creates the account and
+      // sends the confirmation email via our own SMTP (link on the app domain).
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, full_name: fullName }),
       })
+      const data = await response.json()
 
-      if (error) throw error
-
-      // Check if email confirmation is required
-      if (data.user && !data.session) {
-        // Show success message instead of error
-        setError('')
-        // Redirect to a confirmation page
-        router.push(`/auth/check-email?email=${encodeURIComponent(email)}`)
-        return
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sign up')
       }
 
-      // If session exists (shouldn't happen with email confirmation enabled)
-      router.push('/dashboard')
-      router.refresh()
+      // Email confirmation required: send them to the check-email screen.
+      setError('')
+      router.push(`/auth/check-email?email=${encodeURIComponent(email)}`)
+      return
     } catch (err: any) {
       // Handle duplicate email errors
       let errorMessage = err.message || 'Failed to sign up'

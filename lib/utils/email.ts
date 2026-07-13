@@ -462,3 +462,119 @@ If you have any questions, please contact your team administrator.
     // Don't throw - we don't want email failures to break request creation
   }
 }
+
+type AuthEmailResult = { success: boolean; error?: string }
+
+function buildAuthEmailHtml(params: {
+  heading: string
+  intro: string
+  buttonLabel: string
+  actionUrl: string
+  footerNote: string
+}): string {
+  const safeUrl = escapeHtml(params.actionUrl)
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${escapeHtml(params.heading)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Wellflex</h1>
+        </div>
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+          <h2 style="margin-top: 0; color: #212529;">${escapeHtml(params.heading)}</h2>
+          <p style="font-size: 16px;">${escapeHtml(params.intro)}</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${safeUrl}" style="background: #4f46e5; color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; display: inline-block;">${escapeHtml(params.buttonLabel)}</a>
+          </div>
+          <p style="font-size: 13px; color: #6c757d;">Or copy and paste this link into your browser:</p>
+          <p style="font-size: 13px; word-break: break-all;"><a href="${safeUrl}">${safeUrl}</a></p>
+          <p style="font-size: 13px; color: #6c757d; margin-top: 24px;">${escapeHtml(params.footerNote)}</p>
+        </div>
+      </body>
+    </html>
+  `.trim()
+}
+
+/**
+ * Send the account-confirmation email through our own SMTP (Zoho). The link is
+ * an app-hosted /auth/confirm URL carrying the token_hash, so the whole link
+ * stays on the app domain and clicking it verifies + signs the user in.
+ */
+export async function sendAuthConfirmationEmail(params: {
+  to: string
+  name?: string | null
+  confirmUrl: string
+}): Promise<AuthEmailResult> {
+  const transporter = getEmailTransporter()
+  if (!transporter) {
+    console.error('[EMAIL] SMTP not configured; cannot send confirmation email')
+    return { success: false, error: 'SMTP not configured' }
+  }
+
+  const fromEmail = process.env.SMTP_FROM_EMAIL || 'wetrack <noreply@wellflex.co>'
+  const greetingName = params.name || 'there'
+  const html = buildAuthEmailHtml({
+    heading: 'Confirm your email',
+    intro: `Hi ${greetingName}, welcome to Wellflex! Click the button below to confirm your email and sign in.`,
+    buttonLabel: 'Confirm my email',
+    actionUrl: params.confirmUrl,
+    footerNote: 'This link expires in 24 hours. If you did not create an account, you can ignore this email.',
+  })
+
+  try {
+    const result = await transporter.sendMail({
+      from: fromEmail,
+      to: params.to,
+      subject: 'Confirm your Wellflex account',
+      html,
+    })
+    console.log('[EMAIL] ✅ Confirmation email sent', { to: params.to, messageId: result.messageId })
+    return { success: true }
+  } catch (error: any) {
+    console.error('[EMAIL] ❌ Failed to send confirmation email:', { error: error?.message || error, to: params.to })
+    return { success: false, error: error?.message || 'Failed to send confirmation email' }
+  }
+}
+
+/**
+ * Send the password-reset email through our own SMTP (Zoho). The link is an
+ * app-hosted /reset-password URL carrying the recovery token_hash.
+ */
+export async function sendPasswordResetEmail(params: {
+  to: string
+  resetUrl: string
+}): Promise<AuthEmailResult> {
+  const transporter = getEmailTransporter()
+  if (!transporter) {
+    console.error('[EMAIL] SMTP not configured; cannot send password reset email')
+    return { success: false, error: 'SMTP not configured' }
+  }
+
+  const fromEmail = process.env.SMTP_FROM_EMAIL || 'wetrack <noreply@wellflex.co>'
+  const html = buildAuthEmailHtml({
+    heading: 'Reset your password',
+    intro: 'We received a request to reset your Wellflex password. Click the button below to choose a new one.',
+    buttonLabel: 'Reset password',
+    actionUrl: params.resetUrl,
+    footerNote: 'This link expires in 24 hours. If you did not request a password reset, you can safely ignore this email.',
+  })
+
+  try {
+    const result = await transporter.sendMail({
+      from: fromEmail,
+      to: params.to,
+      subject: 'Reset your Wellflex password',
+      html,
+    })
+    console.log('[EMAIL] ✅ Password reset email sent', { to: params.to, messageId: result.messageId })
+    return { success: true }
+  } catch (error: any) {
+    console.error('[EMAIL] ❌ Failed to send password reset email:', { error: error?.message || error, to: params.to })
+    return { success: false, error: error?.message || 'Failed to send password reset email' }
+  }
+}
