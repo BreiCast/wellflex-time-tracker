@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { formatMinutes } from '@/lib/utils/timesheet'
+import { toColombiaDateKey } from '@/lib/utils/date'
 
 interface CalendarViewProps {
   entries: any[]
@@ -17,6 +18,10 @@ function toDateStr(d: Date): string {
 
 export default function CalendarView({ entries, currentDate, onDateClick, periodView = 'month', weekStart }: CalendarViewProps) {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null)
+
+  // "Today" in Colombia time, so the highlight doesn't shift to tomorrow in the
+  // evening (when UTC has already rolled over).
+  const todayKey = toColombiaDateKey(new Date().toISOString())
 
   const getEntryByDate = (dateStr: string) => entries.find((e: any) => e.date === dateStr)
 
@@ -47,7 +52,7 @@ export default function CalendarView({ entries, currentDate, onDateClick, period
         <div className="grid grid-cols-7">
           {weekDates.map(({ dateStr, dayNum }) => {
             const entry = getEntryByDate(dateStr)
-            const isToday = new Date().toISOString().split('T')[0] === dateStr
+            const isToday = todayKey === dateStr
             const dayOfWeek = new Date(dateStr).getDay()
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
 
@@ -150,7 +155,7 @@ export default function CalendarView({ entries, currentDate, onDateClick, period
 
           const entry = getEntryForDay(day)
           const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-          const isToday = new Date().toISOString().split('T')[0] === dateStr
+          const isToday = todayKey === dateStr
           const isWeekend = (firstDayOfMonth + day - 1) % 7 === 0 || (firstDayOfMonth + day - 1) % 7 === 6
 
           return (

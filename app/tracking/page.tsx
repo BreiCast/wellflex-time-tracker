@@ -654,12 +654,14 @@ export default function TrackingPage() {
                 <h2 className="text-xl font-black text-slate-900">Today&apos;s Progress</h2>
                 <p className="text-sm font-bold text-slate-400 mt-1">Track your hours against scheduled time</p>
               </div>
-              <button
-                onClick={() => router.push(`/dashboard?tab=teams&schedule=${selectedTeam}`)}
-                className="px-4 py-2 text-xs font-black text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
-              >
-                Manage Schedules
-              </button>
+              {userRole !== 'MEMBER' && (
+                <button
+                  onClick={() => router.push(`/dashboard?tab=teams&schedule=${selectedTeam}`)}
+                  className="px-4 py-2 text-xs font-black text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
+                >
+                  Manage Schedules
+                </button>
+              )}
             </div>
             <div className="space-y-4">
               {teams.map(team => {

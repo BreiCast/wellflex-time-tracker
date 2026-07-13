@@ -348,6 +348,7 @@ export default function AdminLivePage() {
           else router.push(`/dashboard?tab=${tab}`)
         }}
         userEmail={user?.email}
+        userRole="ADMIN"
         onLogout={handleLogout}
       />
 
@@ -355,6 +356,16 @@ export default function AdminLivePage() {
         {/* Header: title, subtitle, last-updated, refresh */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
+            <button
+              type="button"
+              onClick={() => router.push('/admin')}
+              className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-slate-700 mb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Admin
+            </button>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-1">Live Status</h1>
             <p className="text-slate-500 font-medium">
               {isSelectedDateToday ? 'Who’s working right now.' : `Historical live status for ${formatSelectedDateLabel(selectedDate)}.`}
