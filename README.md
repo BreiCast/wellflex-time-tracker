@@ -32,15 +32,12 @@ A Calamari-style time tracking web application with immutable raw logs and appro
 
 3. **Configure environment variables**:
    ```bash
-   cp .env.local.example .env.local
+   cp .env.example .env.local
    ```
-   
-   Fill in your Supabase credentials:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-   ```
+
+   Then fill in the values. See [`.env.example`](.env.example) for the full,
+   annotated list (Supabase keys, `NEXT_PUBLIC_APP_URL`, `CRON_SECRET`,
+   `SUPERADMIN_EMAILS`, and SMTP settings for auth/notification emails).
 
 4. **Run the development server**:
    ```bash
@@ -49,6 +46,16 @@ A Calamari-style time tracking web application with immutable raw logs and appro
 
 5. **Open your browser**:
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+## Development
+
+```bash
+npm run lint    # ESLint
+npm run test    # Vitest unit/route tests
+npm run build   # Production build (also type-checks app code)
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, test, and build on every pull request.
 
 ## Database Schema
 
