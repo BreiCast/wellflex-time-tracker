@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 import RequestDetailModal from './RequestDetailModal'
 
 interface AdminRequestsViewProps {
@@ -10,6 +11,7 @@ interface AdminRequestsViewProps {
 }
 
 export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequestsViewProps) {
+  const toast = useToast()
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
@@ -117,10 +119,10 @@ export default function AdminRequestsView({ teamIds, selectedTeamId }: AdminRequ
           }))
         }
       } else {
-        alert(result.error || 'Failed to review request')
+        toast.error(result.error || 'Failed to review request')
       }
     } catch (error) {
-      alert('Failed to review request')
+      toast.error('Failed to review request')
     }
   }
 

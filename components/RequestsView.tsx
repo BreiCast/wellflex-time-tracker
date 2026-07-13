@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
+import { Button } from '@/components/ui'
 import RequestDetailModal from './RequestDetailModal'
 
 interface RequestsViewProps {
@@ -10,7 +12,9 @@ interface RequestsViewProps {
 }
 
 export default function RequestsView({ userId, teamId }: RequestsViewProps) {
+  const toast = useToast()
   const [requests, setRequests] = useState<any[]>([])
+  const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
@@ -134,10 +138,11 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
     e.preventDefault()
     const selectedTeamId = formData.team_id || teamId
     if (!selectedTeamId) {
-      alert('Please select a team/client for this request')
+      toast.error('Please select a team/client for this request')
       return
     }
 
+    setSubmitting(true)
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
@@ -159,7 +164,7 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           const fromMins = fromH * 60 + (isNaN(fromM) ? 0 : fromM)
           const toMins = toH * 60 + (isNaN(toM) ? 0 : toM)
           if (toMins <= fromMins) {
-            alert('To Time must be after From Time.')
+            toast.error('To Time must be after From Time.')
             return
           }
         }
@@ -228,11 +233,14 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
           adjusted_duration_minutes: 0,
         })
         loadRequests()
+        toast.success('Request submitted')
       } else {
-        alert(result.error || 'Failed to create request')
+        toast.error(result.error || 'Failed to create request')
       }
     } catch (error) {
-      alert('Failed to create request')
+      toast.error('Failed to create request')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -687,12 +695,9 @@ export default function RequestsView({ userId, teamId }: RequestsViewProps) {
                 className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-slate-700 placeholder:text-slate-300"
               />
             </div>
-            <button
-              type="submit"
-              className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all transform active:scale-95"
-            >
+            <Button type="submit" size="lg" loading={submitting}>
               SUBMIT REQUEST
-            </button>
+            </Button>
           </form>
         </div>
       )}
